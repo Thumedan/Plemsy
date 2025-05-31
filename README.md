@@ -1,6 +1,11 @@
 
 WYMAGAJĄ TAMPERMONKEY, NIE WYMAGAJA WKLEJANIA NICZEGO W KONSOLE, DZIAŁAJĄ AUTOMATYCZNIE TAM GDZIE SĄ POTRZEBNE.
 
+JEŚLI MASZ ZAINSTALOWANE TAMPERMONKEY CZY ODPOWIEDNIK - PO PROSTU KLIKNIJ I ZAINSTALUJ.
+
+
+
+JESLI NIE MASZ:
 
 
 Instalacja skryptu w Tampermonkey polega na najpierw zainstalowaniu samego rozszerzenia, a następnie dodaniu skryptu użytkownika. 
