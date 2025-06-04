@@ -1,16 +1,18 @@
 // ==UserScript==
 // @name         ETYKIETER
 // @namespace    PLEMIONA
-// @version      1.0
+// @version      1.1
 // @description  Etykietuje co 2-5 minut z przeładowaniem i zmienia tytuł nieaktywnej karty.
 // @author       KUKI
 // @match        https://*.plemiona.pl/game.php?village=*&screen=overview_villages&mode=incomings*
 // @match        https://*.plemiona.pl/game.php?screen=overview_villages&mode=incomings&type=unignored&subtype=all&village=*
-// @match        https://*.plemiona.pl/game.php?village=*&screen=overview_villages
+// @match        https://*.plemiona.pl/game.php?village=*&screen=overview_villages*
+// @match        https://*.plemiona.pl/game.php?screen=overview_villages&mode=incomings&type=unignored&subtype=*
 // @downloadURL  https://raw.githubusercontent.com/Thumedan/Plemsy/main/ETYKIETER.user.js
 // @updateURL    https://raw.githubusercontent.com/Thumedan/Plemsy/main/ETYKIETER.user.js
 // @grant        none
 // ==/UserScript==
+
 
 (function () {
     'use strict';
