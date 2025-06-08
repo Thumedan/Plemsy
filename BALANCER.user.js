@@ -11,8 +11,40 @@
 
 (function() {
     'use strict';
-
     /*jshint esversion: 6 */
+
+    // ======================================================================
+    // POCZĄTEK: Logika aktywnej sesji (wzorowana na skrypcie Zbierak)
+    // ======================================================================
+    const BALANCER_SESSION_KEY = 'balancerSessionActive';
+
+    function isBalancerSessionActive() {
+        return sessionStorage.getItem(BALANCER_SESSION_KEY) === 'true';
+    }
+
+    function setBalancerSessionActive(isActive) {
+        sessionStorage.setItem(BALANCER_SESSION_KEY, isActive);
+    }
+
+    function startBalancerSession() {
+        if (!settings.autoSendEnabled) {
+            UI.ErrorMessage("Najpierw włącz 'Automatyczne wysyłanie' w menu ustawień, a następnie zapisz.");
+            return;
+        }
+        setBalancerSessionActive(true);
+        UI.InfoMessage("Sesja automatycznego balansowania rozpoczęta. Strona zostanie odświeżona, aby rozpocząć pętlę.");
+        setTimeout(() => location.reload(), 1500);
+    }
+
+    function stopBalancerSession() {
+        setBalancerSessionActive(false);
+        UI.InfoMessage("Sesja automatycznego balansowania zatrzymana. Strona zostanie odświeżona.");
+        setTimeout(() => location.reload(), 1500);
+    }
+    // ======================================================================
+    // KONIEC: Logika aktywnej sesji
+    // ======================================================================
+
     //script by Sophie "Shinko to Kuma". Skype: live:sophiekitsune discord: Sophie#2418 website: https://shinko-to-kuma.my-free.website/
     var testPage;
     var is_mobile = !!navigator.userAgent.match(/iphone|android|blackberry/ig) || false;
@@ -60,11 +92,12 @@
     .sophHeader { background-color: #202225; font-weight: bold; color: white; } .sophLink { color:#40D0E0; }
     .btnSophie { background-image: linear-gradient(#6e7178 0%, #36393f 30%, #202225 80%, black 100%); color: white !important; }
     .btnSophie:hover { background-image: linear-gradient(#7b7e85 0%, #40444a 30%, #393c40 80%, #171717 100%); }
+    .btn-auto-start { background-color: #4CAF50 !important; } .btn-auto-stop { background-color: #f44336 !important; }
     .collapsible { background-color: #32353b; color: white; cursor: pointer; padding: 10px; width: 100%; border: none; text-align: left; outline: none; font-size: 15px; }
     .active, .collapsible:hover { background-color:  #36393f; }
     .collapsible:after { content: '+'; color: white; font-weight: bold; float: right; margin-left: 5px; } .active:after { content: "-"; }
     .content { padding: 0 5px; max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out; background-color:  #5b5f66; color: white; }
-    .flex-container { display: flex; justify-content: space-between; align-items:center }
+    .flex-container { display: flex; justify-content: space-between; align-items:center; flex-wrap: wrap; }
     .submenu{ display:flex; flex-direction:column; position: absolute; left:0px; top:37px; min-width:240px; }
     </style>`;
 
@@ -127,19 +160,19 @@
         var e = { "target_id": targetID, "wood": woodAmount, "stone": stoneAmount, "iron": ironAmount };
         TribalWars.post("market", { ajaxaction: "map_send", village: sourceID }, e, function (e) {
             UI.SuccessMessage(e.message);
-            if (!settings.autoSendEnabled && $(':button[id="building"]').length > 0) {
+            // Zmieniono, aby nie sprawdzać ustawienia autoSendEnabled, bo teraz decyduje sesja
+            if ($(':button[id="building"]').length > 0) {
                 $(':button[id="building"]')[0].focus();
             }
         }, !1);
 
-        if (!settings.autoSendEnabled) {
-            $(':button[id="building"]').prop('disabled', true);
-            setTimeout(function () {
-                $(':button[id="building"]').prop('disabled', false);
-                if ($("#tableSend tr").length <= 2) { UI.InfoMessage("Wysłano wszystko!"); }
-                if ($(':button[id="building"]').length > 0) { $(':button[id="building"]')[0].focus(); }
-            }, 250);
-        }
+        // Zmieniono, aby nie sprawdzać ustawienia autoSendEnabled
+        $(':button[id="building"]').prop('disabled', true);
+        setTimeout(function () {
+            $(':button[id="building"]').prop('disabled', false);
+            if ($("#tableSend tr").length <= 2) { UI.InfoMessage("Wysłano wszystko!"); }
+            if ($(':button[id="building"]').length > 0) { $(':button[id="building"]')[0].focus(); }
+        }, 250);
     }
 
     function showStats() {
@@ -197,16 +230,24 @@
     window.sendResource = sendResource;
     window.showStats = showStats;
     window.resAfterBalance = resAfterBalance;
+    window.startBalancerSession = startBalancerSession; // Udostępnienie funkcji globalnie
+    window.stopBalancerSession = stopBalancerSession;   // Udostępnienie funkcji globalnie
     // ======================================================================
 
     async function automateSending() {
+        // ZMODYFIKOWANA LOGIKA: Sprawdzamy ustawienia ORAZ aktywną sesję
+        if (!settings.autoSendEnabled || !isBalancerSessionActive()) {
+            console.log("Automation: Anulowano. Automatyzacja wyłączona w ustawieniach lub sesja nie jest aktywna.");
+            return;
+        }
+
         const sendButtons = $('#tableSend input.btnSophie[id="building"]');
         if (sendButtons.length === 0) {
-            console.log("Automation: Brak transportów do wysłania.");
+            console.log("Automation: Brak transportów do wysłania. Planowanie odświeżenia.");
             scheduleRefresh();
             return;
         }
-        UI.InfoMessage(`Automatyzacja: Rozpoczynam wysyłanie ${sendButtons.length} transportów...`);
+        UI.InfoMessage(`Automatyzacja (sesja aktywna): Rozpoczynam wysyłanie ${sendButtons.length} transportów...`);
         for (const button of sendButtons) {
             $(button).click();
             await delay(250 + Math.random() * 250);
@@ -216,7 +257,11 @@
     }
 
     function scheduleRefresh() {
-        if (!settings.autoSendEnabled) return;
+        // ZMODYFIKOWANA LOGIKA: Sprawdzamy ustawienia ORAZ aktywną sesję
+        if (!settings.autoSendEnabled || !isBalancerSessionActive()) {
+            console.log("Automation: Anulowano odświeżanie. Automatyzacja wyłączona w ustawieniach lub sesja nie jest aktywna.");
+            return;
+        }
         const minMins = parseInt(settings.minRefresh, 10);
         const maxMins = parseInt(settings.maxRefresh, 10);
         if (isNaN(minMins) || isNaN(maxMins) || minMins <= 0 || maxMins < minMins) {
@@ -224,8 +269,15 @@
         }
         const refreshMinutes = Math.floor(Math.random() * (maxMins - minMins + 1)) + minMins;
         const refreshMilliseconds = refreshMinutes * 60 * 1000;
-        UI.InfoMessage(`Strona zostanie automatycznie odświeżona za ${refreshMinutes} minut.`);
-        setTimeout(() => { location.reload(); }, refreshMilliseconds);
+        UI.InfoMessage(`(Sesja aktywna) Strona zostanie automatycznie odświeżona za ${refreshMinutes} minut.`);
+        setTimeout(() => {
+            // Ponownie sprawdzamy, czy sesja nadal jest aktywna tuż przed odświeżeniem
+            if (isBalancerSessionActive()) {
+                location.reload();
+            } else {
+                UI.InfoMessage("Automatyczne odświeżanie anulowane, ponieważ sesja została zatrzymana.");
+            }
+        }, refreshMilliseconds);
     }
 
     function createList() {
@@ -277,8 +329,12 @@
             <button type="button" class="btn btnSophie" name="showEndResult" style="padding: 10px;width: 300px" onclick="resAfterBalance()">Pokaż stan po balansie</button>
             </center></div>`);
 
-        if (settings.autoSendEnabled) { automateSending(); }
-        else if ($("#building").length > 0) { $("#building")[0].focus(); }
+        // ZMODYFIKOWANA LOGIKA: Uruchamiamy automatyzację tylko jeśli sesja jest aktywna
+        if (settings.autoSendEnabled && isBalancerSessionActive()) {
+            automateSending();
+        } else if ($("#building").length > 0) {
+            $("#building")[0].focus();
+        }
     }
 
     function numberWithCommas(x) { return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
@@ -298,7 +354,7 @@
     }
 
     // ============================================================================
-    //  ORYGINALNA, PEŁNA FUNKCJA displayEverything
+    //  ORYGINALNA, PEŁNA FUNKCJA displayEverything - ZMODYFIKOWANA
     // ============================================================================
     function displayEverything() {
         $.get(URLIncRes).done(function (page) {
@@ -409,27 +465,39 @@
                 }
                 $("#progress").remove();
 
+                // ZMODYFIKOWANA definicja HTML
+                const sessionActive = isBalancerSessionActive();
+                const statusColor = sessionActive && settings.autoSendEnabled ? 'green' : 'red';
+                const statusText = sessionActive && settings.autoSendEnabled ? 'AKTYWNE (SESJA)' : 'NIETAKTYWNE';
+
                 let htmlCode = `<div id="restart">${totalsAndAverages}</div>
-                <div id="sendResources" class="flex-container sophHeader" style="position: relative">
-                    <button class="sophRowA collapsible" style="width: 250px;min-width: 230px;">Otwórz menu ustawień</button>
-                    <div class="content submenu" style="width: 500px; z-index:99999;">
-                        <form id="settings">
-                            <table style="border-spacing: 2px; width: 100%;">
-                                <tr><td style="padding: 6px;"><label for="isMinting">Ignoruj ustawienia</label></td><td style="padding: 6px;"><input type="checkbox" name="isMinting" ${settings.isMinting ? 'checked' : ''}></td></tr>
-                                <tr><td style="padding: 6px;"><label for="lowPoints">Priorytet <</label></td><td style="padding: 6px;"><input type="range" min="0" max="13000" step="100" value="${settings.lowPoints}" name="lowPoints" oninput="this.nextElementSibling.value=this.value"> <output>${settings.lowPoints}</output> pkt</td></tr>
-                                <tr><td style="padding: 6px;"><label for="highPoints">Skończone ></label></td><td style="padding: 6px;"><input type="range" min="0" max="13000" step="100" value="${settings.highPoints}" name="highPoints" oninput="this.nextElementSibling.value=this.value"> <output>${settings.highPoints}</output> pkt</td></tr>
-                                <tr><td style="padding: 6px;"><label for="highFarm">Dużo farmy ></label></td><td style="padding: 6px;"><input type="range" min="0" max="33000" step="100" value="${settings.highFarm}" name="highFarm" oninput="this.nextElementSibling.value=this.value"> <output>${settings.highFarm}</output> pop</td></tr>
-                                <tr><td style="padding: 6px;"><label for="builtOutPercentage">Poj. spich. (skończone)</label></td><td style="padding: 6px;"><input type="range" min="0" max="1" step="0.01" value="${settings.builtOutPercentage}" name="builtOutPercentage" oninput="this.nextElementSibling.value=this.value"> <output>${settings.builtOutPercentage}</output></td></tr>
-                                <tr><td style="padding: 6px;"><label for="needsMorePercentage">Poj. spich. (priorytet)</label></td><td style="padding: 6px;"><input type="range" min="0" max="1" step="0.01" value="${settings.needsMorePercentage}" name="needsMorePercentage" oninput="this.nextElementSibling.value=this.value"> <output>${settings.needsMorePercentage}</output></td></tr>
-                                <tr class='sophRowA'><td style="padding: 6px;" colspan="2"><hr><b>Automatyzacja</b></td></tr>
-                                <tr><td style="padding: 6px;"><label for="autoSendEnabled">Automatyczne wysyłanie</label></td><td style="padding: 6px;"><input type="checkbox" name="autoSendEnabled" ${settings.autoSendEnabled ? 'checked' : ''}></td></tr>
-                                <tr><td style="padding: 6px;"><label for="minRefresh">Min. odświeżenie (min)</label></td><td style="padding: 6px;"><input type="number" name="minRefresh" min="1" value="${settings.minRefresh}" style="width:60px; color: black;"></td></tr>
-                                <tr><td style="padding: 6px;"><label for="maxRefresh">Max. odświeżenie (min)</label></td><td style="padding: 6px;"><input type="number" name="maxRefresh" min="1" value="${settings.maxRefresh}" style="width:60px; color: black;"></td></tr>
-                                <tr class='sophRowA'><td style="padding: 6px;" colspan="2"><hr></td></tr>
-                                <tr><td style="padding: 6px;" colspan="2"><input type="button" class="btn evt-confirm-btn btn-confirm-yes" value="Zapisz i uruchom ponownie" onclick="saveSettings();"/></td></tr>
-                                <td colspan="2" style="padding: 6px;"><p style="padding:5px"><font size="1">Script by Sophie "Shinko to Kuma"</font></p></td>
-                            </table>
-                        </form>
+                <div id="sendResources" class="flex-container sophHeader" style="position: relative; padding: 5px;">
+                    <div>
+                        <button class="sophRowA collapsible" style="width: 250px;min-width: 230px;">Otwórz menu ustawień</button>
+                        <div class="content submenu" style="width: 500px; z-index:99999;">
+                            <form id="settings">
+                                <table style="border-spacing: 2px; width: 100%;">
+                                    <tr><td style="padding: 6px;"><label for="isMinting">Ignoruj ustawienia</label></td><td style="padding: 6px;"><input type="checkbox" name="isMinting" ${settings.isMinting ? 'checked' : ''}></td></tr>
+                                    <tr><td style="padding: 6px;"><label for="lowPoints">Priorytet <</label></td><td style="padding: 6px;"><input type="range" min="0" max="13000" step="100" value="${settings.lowPoints}" name="lowPoints" oninput="this.nextElementSibling.value=this.value"> <output>${settings.lowPoints}</output> pkt</td></tr>
+                                    <tr><td style="padding: 6px;"><label for="highPoints">Skończone ></label></td><td style="padding: 6px;"><input type="range" min="0" max="13000" step="100" value="${settings.highPoints}" name="highPoints" oninput="this.nextElementSibling.value=this.value"> <output>${settings.highPoints}</output> pkt</td></tr>
+                                    <tr><td style="padding: 6px;"><label for="highFarm">Dużo farmy ></label></td><td style="padding: 6px;"><input type="range" min="0" max="33000" step="100" value="${settings.highFarm}" name="highFarm" oninput="this.nextElementSibling.value=this.value"> <output>${settings.highFarm}</output> pop</td></tr>
+                                    <tr><td style="padding: 6px;"><label for="builtOutPercentage">Poj. spich. (skończone)</label></td><td style="padding: 6px;"><input type="range" min="0" max="1" step="0.01" value="${settings.builtOutPercentage}" name="builtOutPercentage" oninput="this.nextElementSibling.value=this.value"> <output>${settings.builtOutPercentage}</output></td></tr>
+                                    <tr><td style="padding: 6px;"><label for="needsMorePercentage">Poj. spich. (priorytet)</label></td><td style="padding: 6px;"><input type="range" min="0" max="1" step="0.01" value="${settings.needsMorePercentage}" name="needsMorePercentage" oninput="this.nextElementSibling.value=this.value"> <output>${settings.needsMorePercentage}</output></td></tr>
+                                    <tr class='sophRowA'><td style="padding: 6px;" colspan="2"><hr><b>Automatyzacja</b></td></tr>
+                                    <tr><td style="padding: 6px;"><label for="autoSendEnabled" title="Główny włącznik funkcji. Musi być zaznaczony, aby można było uruchomić sesję AUTO.">Automatyczne wysyłanie</label></td><td style="padding: 6px;"><input type="checkbox" name="autoSendEnabled" ${settings.autoSendEnabled ? 'checked' : ''}></td></tr>
+                                    <tr><td style="padding: 6px;"><label for="minRefresh">Min. odświeżenie (min)</label></td><td style="padding: 6px;"><input type="number" name="minRefresh" min="1" value="${settings.minRefresh}" style="width:60px; color: black;"></td></tr>
+                                    <tr><td style="padding: 6px;"><label for="maxRefresh">Max. odświeżenie (min)</label></td><td style="padding: 6px;"><input type="number" name="maxRefresh" min="1" value="${settings.maxRefresh}" style="width:60px; color: black;"></td></tr>
+                                    <tr class='sophRowA'><td style="padding: 6px;" colspan="2"><hr></td></tr>
+                                    <tr><td style="padding: 6px;" colspan="2"><input type="button" class="btn evt-confirm-btn btn-confirm-yes" value="Zapisz i uruchom ponownie" onclick="saveSettings();"/></td></tr>
+                                    <td colspan="2" style="padding: 6px;"><p style="padding:5px"><font size="1">Script by Sophie "Shinko to Kuma"</font></p></td>
+                                </table>
+                            </form>
+                        </div>
+                    </div>
+                    <div style="text-align: right; margin: 5px;">
+                        <span id="auto_status_indicator" style="font-weight: bold; color: ${statusColor}; margin-right: 15px;">AUTO: ${statusText}</span>
+                        <button class="btn btn-auto-start" onclick="startBalancerSession()" style="display: ${sessionActive ? 'none' : 'inline-block'};" title="Uruchamia automatyczną pętlę balansowania dla tej sesji karty.">Start AUTO (sesja)</button>
+                        <button class="btn btn-auto-stop" onclick="stopBalancerSession()" style="display: ${sessionActive ? 'inline-block' : 'none'};" title="Zatrzymuje automatyczną pętlę balansowania.">Stop AUTO (sesja)</button>
                     </div>
                 </div>
                 <table id="tableSend" width="100%" class="sophHeader">
