@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         BALANCER
 // @namespace    plemsy
-// @version      1.1
-// @description  Oryginalny skrypt Sophie z poprawnie zintegrowaną automatyzacją. Naprawia błąd 'sendResource is not defined'.
+// @version      1.2
+// @description  Oryginalny skrypt Sophie z poprawnie zintegrowaną automatyzacją. Naprawia błąd 'sendResource is not defined' i wprowadza logikę aktywnej sesji.
 // @author       Sophie "Shinko to Kuma" (oryginał), Modyfikacja: KUKI I GOOGLE
 // @match        *://*/game.php?*&screen=market&mode=send*
 // @downloadURL  https://raw.githubusercontent.com/Thumedan/Plemsy/main/BALANCER.user.js
 // @updateURL    https://raw.githubusercontent.com/Thumedan/Plemsy/main/BALANCER.user.js
+// @grant        none
 // ==/UserScript==
 
 (function() {
@@ -14,7 +15,7 @@
     /*jshint esversion: 6 */
 
     // ======================================================================
-    // POCZĄTEK: Logika aktywnej sesji (wzorowana na skrypcie Zbierak)
+    // Logika aktywnej sesji
     // ======================================================================
     const BALANCER_SESSION_KEY = 'balancerSessionActive';
 
@@ -41,35 +42,15 @@
         UI.InfoMessage("Sesja automatycznego balansowania zatrzymana. Strona zostanie odświeżona.");
         setTimeout(() => location.reload(), 1500);
     }
-    // ======================================================================
-    // KONIEC: Logika aktywnej sesji
-    // ======================================================================
 
-    //script by Sophie "Shinko to Kuma". Skype: live:sophiekitsune discord: Sophie#2418 website: https://shinko-to-kuma.my-free.website/
+    // Pozostałe deklaracje
     var testPage;
     var is_mobile = !!navigator.userAgent.match(/iphone|android|blackberry/ig) || false;
-    var warehouseCapacity = [];
-    var allWoodTotals = [];
-    var allClayTotals = [];
-    var allIronTotals = [];
-    var availableMerchants = [];
-    var totalMerchants = [];
-    var farmSpaceUsed = [];
-    var farmSpaceTotal = [];
-    var villagePoints = [];
-    var villagesData = [];
-    var villageID = [];
+    var warehouseCapacity = [], allWoodTotals = [], allClayTotals = [], allIronTotals = [], availableMerchants = [], totalMerchants = [];
+    var farmSpaceUsed = [], farmSpaceTotal = [], villagePoints = [], villagesData = [], villageID = [];
     var allWoodObjects, allClayObjects, allIronObjects, allVillages, allWarehouses, allFarms, allMerchants;
-    var totalsAndAverages = "";
-    var incomingRes = {};
-    var totalWood, totalStone, totalIron;
-    var merchantOrders = [];
-    var excessResources = [];
-    var shortageResources = [];
-    var links = [];
-    var cleanLinks = [];
-    var stillShortage = [];
-    var stillExcess = [];
+    var totalsAndAverages = "", incomingRes = {}, totalWood, totalStone, totalIron;
+    var merchantOrders = [], excessResources = [], shortageResources = [], links = [], cleanLinks = [], stillShortage = [], stillExcess = [];
 
     function delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
@@ -133,9 +114,6 @@
         URLProd = `game.php?&screen=overview_villages&mode=prod&page=-1&`;
     }
 
-    // ======================================================================
-    // DEKLARACJA FUNKCJI, KTÓRE BĘDĄ WYSTAWIONE GLOBALNIE
-    // ======================================================================
     function saveSettings() {
         settings.isMinting = $("input[name='isMinting']").is(':checked');
         settings.autoSendEnabled = $("input[name='autoSendEnabled']").is(':checked');
@@ -160,13 +138,11 @@
         var e = { "target_id": targetID, "wood": woodAmount, "stone": stoneAmount, "iron": ironAmount };
         TribalWars.post("market", { ajaxaction: "map_send", village: sourceID }, e, function (e) {
             UI.SuccessMessage(e.message);
-            // Zmieniono, aby nie sprawdzać ustawienia autoSendEnabled, bo teraz decyduje sesja
             if ($(':button[id="building"]').length > 0) {
                 $(':button[id="building"]')[0].focus();
             }
         }, !1);
 
-        // Zmieniono, aby nie sprawdzać ustawienia autoSendEnabled
         $(':button[id="building"]').prop('disabled', true);
         setTimeout(function () {
             $(':button[id="building"]').prop('disabled', false);
@@ -226,22 +202,13 @@
         });
     }
 
-    window.saveSettings = saveSettings;
-    window.sendResource = sendResource;
-    window.showStats = showStats;
-    window.resAfterBalance = resAfterBalance;
-    window.startBalancerSession = startBalancerSession; // Udostępnienie funkcji globalnie
-    window.stopBalancerSession = stopBalancerSession;   // Udostępnienie funkcji globalnie
-    // ======================================================================
-
     async function automateSending() {
-        // ZMODYFIKOWANA LOGIKA: Sprawdzamy ustawienia ORAZ aktywną sesję
         if (!settings.autoSendEnabled || !isBalancerSessionActive()) {
             console.log("Automation: Anulowano. Automatyzacja wyłączona w ustawieniach lub sesja nie jest aktywna.");
             return;
         }
 
-        const sendButtons = $('#tableSend input.btnSophie[id="building"]');
+        const sendButtons = $('#tableSend input.btnSophie[data-role="send-res"]');
         if (sendButtons.length === 0) {
             console.log("Automation: Brak transportów do wysłania. Planowanie odświeżenia.");
             scheduleRefresh();
@@ -257,7 +224,6 @@
     }
 
     function scheduleRefresh() {
-        // ZMODYFIKOWANA LOGIKA: Sprawdzamy ustawienia ORAZ aktywną sesję
         if (!settings.autoSendEnabled || !isBalancerSessionActive()) {
             console.log("Automation: Anulowano odświeżanie. Automatyzacja wyłączona w ustawieniach lub sesja nie jest aktywna.");
             return;
@@ -271,7 +237,6 @@
         const refreshMilliseconds = refreshMinutes * 60 * 1000;
         UI.InfoMessage(`(Sesja aktywna) Strona zostanie automatycznie odświeżona za ${refreshMinutes} minut.`);
         setTimeout(() => {
-            // Ponownie sprawdzamy, czy sesja nadal jest aktywna tuż przed odświeżeniem
             if (isBalancerSessionActive()) {
                 location.reload();
             } else {
@@ -313,10 +278,25 @@
                 <td style="text-align:center">${numberWithCommas(link.wood)}<span class="icon header wood"></span></td>
                 <td style="text-align:center">${numberWithCommas(link.stone)}<span class="icon header stone"></span></td>
                 <td style="text-align:center">${numberWithCommas(link.iron)}<span class="icon header iron"></span></td>
-                <td style="text-align:center"><input type="button" class="btn btnSophie" id="building" value="${langShinko[7]}" onclick="sendResource(${link.source},${link.target},${link.wood},${link.stone},${link.iron},${i})"></td>
+                <td style="text-align:center"><input type="button" class="btn btnSophie" data-role="send-res" value="${langShinko[7]}"
+                    data-source="${link.source}" data-target="${link.target}"
+                    data-wood="${link.wood}" data-stone="${link.stone}" data-iron="${link.iron}"
+                    data-row-nr="${i}"></td>
             </tr>`;
         });
         $("#appendHere").eq(0).append(listHTML);
+
+        $('#tableSend .btnSophie[data-role="send-res"]').on('click', function() {
+            const button = $(this);
+            sendResource(
+                button.data('source'),
+                button.data('target'),
+                button.data('wood'),
+                button.data('stone'),
+                button.data('iron'),
+                button.data('row-nr')
+            );
+        });
 
         stillShortage = []; stillExcess = [];
         villagesData.forEach((village, i) => {
@@ -325,15 +305,17 @@
         });
 
         $("#totals").eq(0).append(`<div id='aftermath'><center>
-            <button type="button" class="btn btnSophie" name="showStats" style="padding: 10px;width: 300px" onclick="showStats()">Pokaż nadwyżki/braki</button>
-            <button type="button" class="btn btnSophie" name="showEndResult" style="padding: 10px;width: 300px" onclick="resAfterBalance()">Pokaż stan po balansie</button>
+            <button type="button" class="btn btnSophie" id="btn_show_stats" name="showStats" style="padding: 10px;width: 300px">Pokaż nadwyżki/braki</button>
+            <button type="button" class="btn btnSophie" id="btn_res_balance" name="showEndResult" style="padding: 10px;width: 300px">Pokaż stan po balansie</button>
             </center></div>`);
+        
+        $('#btn_show_stats').on('click', showStats);
+        $('#btn_res_balance').on('click', resAfterBalance);
 
-        // ZMODYFIKOWANA LOGIKA: Uruchamiamy automatyzację tylko jeśli sesja jest aktywna
         if (settings.autoSendEnabled && isBalancerSessionActive()) {
             automateSending();
-        } else if ($("#building").length > 0) {
-            $("#building")[0].focus();
+        } else if ($('#tableSend .btnSophie[data-role="send-res"]').length > 0) {
+            $('#tableSend .btnSophie[data-role="send-res"]')[0].focus();
         }
     }
 
@@ -353,9 +335,6 @@
         return array;
     }
 
-    // ============================================================================
-    //  ORYGINALNA, PEŁNA FUNKCJA displayEverything - ZMODYFIKOWANA
-    // ============================================================================
     function displayEverything() {
         $.get(URLIncRes).done(function (page) {
             var $page = $(page);
@@ -465,7 +444,6 @@
                 }
                 $("#progress").remove();
 
-                // ZMODYFIKOWANA definicja HTML
                 const sessionActive = isBalancerSessionActive();
                 const statusColor = sessionActive && settings.autoSendEnabled ? 'green' : 'red';
                 const statusText = sessionActive && settings.autoSendEnabled ? 'AKTYWNE (SESJA)' : 'NIETAKTYWNE';
@@ -488,7 +466,7 @@
                                     <tr><td style="padding: 6px;"><label for="minRefresh">Min. odświeżenie (min)</label></td><td style="padding: 6px;"><input type="number" name="minRefresh" min="1" value="${settings.minRefresh}" style="width:60px; color: black;"></td></tr>
                                     <tr><td style="padding: 6px;"><label for="maxRefresh">Max. odświeżenie (min)</label></td><td style="padding: 6px;"><input type="number" name="maxRefresh" min="1" value="${settings.maxRefresh}" style="width:60px; color: black;"></td></tr>
                                     <tr class='sophRowA'><td style="padding: 6px;" colspan="2"><hr></td></tr>
-                                    <tr><td style="padding: 6px;" colspan="2"><input type="button" class="btn evt-confirm-btn btn-confirm-yes" value="Zapisz i uruchom ponownie" onclick="saveSettings();"/></td></tr>
+                                    <tr><td style="padding: 6px;" colspan="2"><input type="button" class="btn evt-confirm-btn btn-confirm-yes" id="btn_save_settings" value="Zapisz i uruchom ponownie"/></td></tr>
                                     <td colspan="2" style="padding: 6px;"><p style="padding:5px"><font size="1">Script by Sophie "Shinko to Kuma"</font></p></td>
                                 </table>
                             </form>
@@ -496,8 +474,8 @@
                     </div>
                     <div style="text-align: right; margin: 5px;">
                         <span id="auto_status_indicator" style="font-weight: bold; color: ${statusColor}; margin-right: 15px;">AUTO: ${statusText}</span>
-                        <button class="btn btn-auto-start" onclick="startBalancerSession()" style="display: ${sessionActive ? 'none' : 'inline-block'};" title="Uruchamia automatyczną pętlę balansowania dla tej sesji karty.">Start AUTO (sesja)</button>
-                        <button class="btn btn-auto-stop" onclick="stopBalancerSession()" style="display: ${sessionActive ? 'inline-block' : 'none'};" title="Zatrzymuje automatyczną pętlę balansowania.">Stop AUTO (sesja)</button>
+                        <button class="btn btn-auto-start" id="btn_start_session" style="display: ${sessionActive ? 'none' : 'inline-block'};" title="Uruchamia automatyczną pętlę balansowania dla tej sesji karty.">Start AUTO (sesja)</button>
+                        <button class="btn btn-auto-stop" id="btn_stop_session" style="display: ${sessionActive ? 'inline-block' : 'none'};" title="Zatrzymuje automatyczną pętlę balansowania.">Stop AUTO (sesja)</button>
                     </div>
                 </div>
                 <table id="tableSend" width="100%" class="sophHeader">
@@ -508,6 +486,11 @@
 
                 $("#content_value").eq(0).prepend(htmlCode);
                 if (is_mobile == true) { $("#mobile_header").eq(0).prepend(htmlCode); }
+
+                $('#btn_save_settings').on('click', saveSettings);
+                $('#btn_start_session').on('click', startBalancerSession);
+                $('#btn_stop_session').on('click', stopBalancerSession);
+
                 makeThingsCollapsible();
                 createList();
             });
