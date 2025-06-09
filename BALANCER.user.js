@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         BALANCER
 // @namespace    plemsy
-// @version      1.2
-// @description  Oryginalny skrypt Sophie z poprawnie zintegrowaną automatyzacją. Naprawia błąd 'sendResource is not defined' i wprowadza logikę aktywnej sesji.
+// @version      1.2.1
+// @description  Korekta graficzna
 // @author       Sophie "Shinko to Kuma" (oryginał), Modyfikacja: KUKI I GOOGLE
 // @match        *://*/game.php?*&screen=market&mode=send*
 // @downloadURL  https://raw.githubusercontent.com/Thumedan/Plemsy/main/BALANCER.user.js
@@ -15,7 +15,7 @@
     /*jshint esversion: 6 */
 
     // ======================================================================
-    // Logika aktywnej sesji
+    // POCZĄTEK: Logika aktywnej sesji (wzorowana na skrypcie Zbierak)
     // ======================================================================
     const BALANCER_SESSION_KEY = 'balancerSessionActive';
 
@@ -42,15 +42,35 @@
         UI.InfoMessage("Sesja automatycznego balansowania zatrzymana. Strona zostanie odświeżona.");
         setTimeout(() => location.reload(), 1500);
     }
+    // ======================================================================
+    // KONIEC: Logika aktywnej sesji
+    // ======================================================================
 
-    // Pozostałe deklaracje
+    //script by Sophie "Shinko to Kuma". Skype: live:sophiekitsune discord: Sophie#2418 website: https://shinko-to-kuma.my-free.website/
     var testPage;
     var is_mobile = !!navigator.userAgent.match(/iphone|android|blackberry/ig) || false;
-    var warehouseCapacity = [], allWoodTotals = [], allClayTotals = [], allIronTotals = [], availableMerchants = [], totalMerchants = [];
-    var farmSpaceUsed = [], farmSpaceTotal = [], villagePoints = [], villagesData = [], villageID = [];
+    var warehouseCapacity = [];
+    var allWoodTotals = [];
+    var allClayTotals = [];
+    var allIronTotals = [];
+    var availableMerchants = [];
+    var totalMerchants = [];
+    var farmSpaceUsed = [];
+    var farmSpaceTotal = [];
+    var villagePoints = [];
+    var villagesData = [];
+    var villageID = [];
     var allWoodObjects, allClayObjects, allIronObjects, allVillages, allWarehouses, allFarms, allMerchants;
-    var totalsAndAverages = "", incomingRes = {}, totalWood, totalStone, totalIron;
-    var merchantOrders = [], excessResources = [], shortageResources = [], links = [], cleanLinks = [], stillShortage = [], stillExcess = [];
+    var totalsAndAverages = "";
+    var incomingRes = {};
+    var totalWood, totalStone, totalIron;
+    var merchantOrders = [];
+    var excessResources = [];
+    var shortageResources = [];
+    var links = [];
+    var cleanLinks = [];
+    var stillShortage = [];
+    var stillExcess = [];
 
     function delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
@@ -89,7 +109,7 @@
     if (localStorage.getItem("settingsWHBalancerSophie") != null) {
         settings = JSON.parse(localStorage.getItem("settingsWHBalancerSophie"));
     } else {
-        settings = { "isMinting": false, "highPoints": 8000, "highFarm": 23000, "lowPoints": 3000, "builtOutPercentage": 0.25, "needsMorePercentage": 0.85, "autoSendEnabled": false, "minRefresh": 30, "maxRefresh": 60 };
+        settings = { "isMinting": false, "highPoints": 8000, "highFarm": 23000, "lowPoints": 3000, "builtOutPercentage": 0.25, "needsMorePercentage": 0.85, "autoSendEnabled": false, "minRefresh": 30, "maxRefresh": 60, "idleTitlePrefix": "(SUROWCE)" };
         localStorage.setItem("settingsWHBalancerSophie", JSON.stringify(settings));
     }
 
@@ -102,6 +122,7 @@
     if (settings.autoSendEnabled === undefined) settings.autoSendEnabled = false;
     if (settings.minRefresh === undefined) settings.minRefresh = 30;
     if (settings.maxRefresh === undefined) settings.maxRefresh = 60;
+    if (settings.idleTitlePrefix === undefined) settings.idleTitlePrefix = "(SUROWCE)"; // NOWA OPCJA
 
     if ($("#sendResources")[0]) { $("#sendResources")[0].remove(); $("#totals")[0].remove(); }
 
@@ -114,6 +135,9 @@
         URLProd = `game.php?&screen=overview_villages&mode=prod&page=-1&`;
     }
 
+    // ======================================================================
+    // DEKLARACJA FUNKCJI, KTÓRE BĘDĄ WYSTAWIONE GLOBALNIE
+    // ======================================================================
     function saveSettings() {
         settings.isMinting = $("input[name='isMinting']").is(':checked');
         settings.autoSendEnabled = $("input[name='autoSendEnabled']").is(':checked');
@@ -124,6 +148,7 @@
         settings.needsMorePercentage = parseFloat($("input[name='needsMorePercentage']").val());
         settings.minRefresh = parseInt($("input[name='minRefresh']").val());
         settings.maxRefresh = parseInt($("input[name='maxRefresh']").val());
+        settings.idleTitlePrefix = $("input[name='idleTitlePrefix']").val(); // ZAPIS NOWEJ OPCJI
 
         localStorage.setItem("settingsWHBalancerSophie", JSON.stringify(settings));
         UI.SuccessMessage("Ustawienia zapisane! Odświeżanie interfejsu...");
@@ -202,13 +227,21 @@
         });
     }
 
+    window.saveSettings = saveSettings;
+    window.sendResource = sendResource;
+    window.showStats = showStats;
+    window.resAfterBalance = resAfterBalance;
+    window.startBalancerSession = startBalancerSession;
+    window.stopBalancerSession = stopBalancerSession;
+    // ======================================================================
+
     async function automateSending() {
         if (!settings.autoSendEnabled || !isBalancerSessionActive()) {
             console.log("Automation: Anulowano. Automatyzacja wyłączona w ustawieniach lub sesja nie jest aktywna.");
             return;
         }
 
-        const sendButtons = $('#tableSend input.btnSophie[data-role="send-res"]');
+        const sendButtons = $('#tableSend input.btnSophie[id="building"]');
         if (sendButtons.length === 0) {
             console.log("Automation: Brak transportów do wysłania. Planowanie odświeżenia.");
             scheduleRefresh();
@@ -278,25 +311,10 @@
                 <td style="text-align:center">${numberWithCommas(link.wood)}<span class="icon header wood"></span></td>
                 <td style="text-align:center">${numberWithCommas(link.stone)}<span class="icon header stone"></span></td>
                 <td style="text-align:center">${numberWithCommas(link.iron)}<span class="icon header iron"></span></td>
-                <td style="text-align:center"><input type="button" class="btn btnSophie" data-role="send-res" value="${langShinko[7]}"
-                    data-source="${link.source}" data-target="${link.target}"
-                    data-wood="${link.wood}" data-stone="${link.stone}" data-iron="${link.iron}"
-                    data-row-nr="${i}"></td>
+                <td style="text-align:center"><input type="button" class="btn btnSophie" id="building" value="${langShinko[7]}" onclick="sendResource(${link.source},${link.target},${link.wood},${link.stone},${link.iron},${i})"></td>
             </tr>`;
         });
         $("#appendHere").eq(0).append(listHTML);
-
-        $('#tableSend .btnSophie[data-role="send-res"]').on('click', function() {
-            const button = $(this);
-            sendResource(
-                button.data('source'),
-                button.data('target'),
-                button.data('wood'),
-                button.data('stone'),
-                button.data('iron'),
-                button.data('row-nr')
-            );
-        });
 
         stillShortage = []; stillExcess = [];
         villagesData.forEach((village, i) => {
@@ -305,17 +323,14 @@
         });
 
         $("#totals").eq(0).append(`<div id='aftermath'><center>
-            <button type="button" class="btn btnSophie" id="btn_show_stats" name="showStats" style="padding: 10px;width: 300px">Pokaż nadwyżki/braki</button>
-            <button type="button" class="btn btnSophie" id="btn_res_balance" name="showEndResult" style="padding: 10px;width: 300px">Pokaż stan po balansie</button>
+            <button type="button" class="btn btnSophie" name="showStats" style="padding: 10px;width: 300px" onclick="showStats()">Pokaż nadwyżki/braki</button>
+            <button type="button" class="btn btnSophie" name="showEndResult" style="padding: 10px;width: 300px" onclick="resAfterBalance()">Pokaż stan po balansie</button>
             </center></div>`);
-        
-        $('#btn_show_stats').on('click', showStats);
-        $('#btn_res_balance').on('click', resAfterBalance);
 
         if (settings.autoSendEnabled && isBalancerSessionActive()) {
             automateSending();
-        } else if ($('#tableSend .btnSophie[data-role="send-res"]').length > 0) {
-            $('#tableSend .btnSophie[data-role="send-res"]')[0].focus();
+        } else if ($("#building").length > 0) {
+            $("#building")[0].focus();
         }
     }
 
@@ -335,6 +350,9 @@
         return array;
     }
 
+    // ============================================================================
+    //  GŁÓWNA FUNKCJA WYŚWIETLAJĄCA
+    // ============================================================================
     function displayEverything() {
         $.get(URLIncRes).done(function (page) {
             var $page = $(page);
@@ -402,7 +420,7 @@
                         if (warehouseCapacity[i] < actualIronAverage) { actualTotalIron -= actualIronAverage - warehouseCapacity[i] * settings.needsMorePercentage; actualWHCountNeedsBalancingIron--; }
                     }
                 } else { actualWoodAverage = woodAverage; actualStoneAverage = stoneAverage; actualIronAverage = ironAverage; }
-                totalsAndAverages = `<div id='totals' class='sophHeader' border=0><table id='totalsAndAverages' width='100%'><tr class='sophRowA'><td>${langShinko[9]}: ${numberWithCommas(totalWood)}</td><td>${langShinko[10]}: ${numberWithCommas(totalStone)}</td><td>${langShinko[11]}: ${numberWithCommas(totalIron)}</td></tr><tr class='sophRowB'><td>${langShinko[12]}: ${numberWithCommas(woodAverage)}</td><td>${langShinko[13]}: ${numberWithCommas(stoneAverage)}</td><td>${langShinko[14]}: ${numberWithCommas(ironAverage)}</td></tr><tr class='sophRowA'><td>Aktualna średnia Drewna: ${numberWithCommas(actualWoodAverage)}</td><td>Aktualna średnia Gliny: ${numberWithCommas(actualStoneAverage)}</td><td>Aktualna średnia Żelaza: ${numberWithCommas(actualIronAverage)}</td></tr></table>`;
+                totalsAndAverages = `<div id='totals' class='sophHeader' border=0><table id='totalsAndAverages' width='100%'><tr class='sophRowA'><td>${langShinko[9]}: ${numberWithCommas(totalWood)}</td><td>${langShinko[10]}: ${numberWithCommas(totalStone)}</td><td>${langShinko[11]}: ${numberWithCommas(totalIron)}</td></tr><tr class='sophRowB'><td>${langShinko[12]}: ${numberWithCommas(woodAverage)}</td><td>${langShinko[13]}: ${numberWithCommas(stoneAverage)}</td><td>${langShinko[14]}: ${numberWithCommas(ironAverage)}</td></tr><tr class='sophRowA'><td>Średnia Drewna po korekcie: ${numberWithCommas(actualWoodAverage)}</td><td>Średnia Gliny po korekcie: ${numberWithCommas(actualStoneAverage)}</td><td>Średnia Żelaza po korekcie: ${numberWithCommas(actualIronAverage)}</td></tr></table>`;
                 $(".content-border").eq(0).prepend(`<div id="progressbar" style="width: 100%;background-color: #36393f;"><div id="progress" style="width: 0%;height: 35px;background-color: #4CAF50;text-align: center;line-height: 32px;color: black;"></div></div>`);
                 for (let v = 0; v < villagesData.length; v++) {
                     excessResources[v] = []; shortageResources[v] = []; villageID.push(villagesData[v].id);
@@ -465,8 +483,9 @@
                                     <tr><td style="padding: 6px;"><label for="autoSendEnabled" title="Główny włącznik funkcji. Musi być zaznaczony, aby można było uruchomić sesję AUTO.">Automatyczne wysyłanie</label></td><td style="padding: 6px;"><input type="checkbox" name="autoSendEnabled" ${settings.autoSendEnabled ? 'checked' : ''}></td></tr>
                                     <tr><td style="padding: 6px;"><label for="minRefresh">Min. odświeżenie (min)</label></td><td style="padding: 6px;"><input type="number" name="minRefresh" min="1" value="${settings.minRefresh}" style="width:60px; color: black;"></td></tr>
                                     <tr><td style="padding: 6px;"><label for="maxRefresh">Max. odświeżenie (min)</label></td><td style="padding: 6px;"><input type="number" name="maxRefresh" min="1" value="${settings.maxRefresh}" style="width:60px; color: black;"></td></tr>
+                                    <tr><td style="padding: 6px;"><label for="idleTitlePrefix">Tytuł nieaktywnej karty</label></td><td style="padding: 6px;"><input type="text" name="idleTitlePrefix" value="${settings.idleTitlePrefix}" style="width:150px; color: black;"></td></tr>
                                     <tr class='sophRowA'><td style="padding: 6px;" colspan="2"><hr></td></tr>
-                                    <tr><td style="padding: 6px;" colspan="2"><input type="button" class="btn evt-confirm-btn btn-confirm-yes" id="btn_save_settings" value="Zapisz i uruchom ponownie"/></td></tr>
+                                    <tr><td style="padding: 6px;" colspan="2"><input type="button" class="btn evt-confirm-btn btn-confirm-yes" value="Zapisz i uruchom ponownie" onclick="saveSettings();"/></td></tr>
                                     <td colspan="2" style="padding: 6px;"><p style="padding:5px"><font size="1">Script by Sophie "Shinko to Kuma"</font></p></td>
                                 </table>
                             </form>
@@ -474,8 +493,8 @@
                     </div>
                     <div style="text-align: right; margin: 5px;">
                         <span id="auto_status_indicator" style="font-weight: bold; color: ${statusColor}; margin-right: 15px;">AUTO: ${statusText}</span>
-                        <button class="btn btn-auto-start" id="btn_start_session" style="display: ${sessionActive ? 'none' : 'inline-block'};" title="Uruchamia automatyczną pętlę balansowania dla tej sesji karty.">Start AUTO (sesja)</button>
-                        <button class="btn btn-auto-stop" id="btn_stop_session" style="display: ${sessionActive ? 'inline-block' : 'none'};" title="Zatrzymuje automatyczną pętlę balansowania.">Stop AUTO (sesja)</button>
+                        <button class="btn btn-auto-start" onclick="startBalancerSession()" style="display: ${sessionActive ? 'none' : 'inline-block'};" title="Uruchamia automatyczną pętlę balansowania dla tej sesji karty.">Start AUTO (sesja)</button>
+                        <button class="btn btn-auto-stop" onclick="stopBalancerSession()" style="display: ${sessionActive ? 'inline-block' : 'none'};" title="Zatrzymuje automatyczną pętlę balansowania.">Stop AUTO (sesja)</button>
                     </div>
                 </div>
                 <table id="tableSend" width="100%" class="sophHeader">
@@ -486,17 +505,39 @@
 
                 $("#content_value").eq(0).prepend(htmlCode);
                 if (is_mobile == true) { $("#mobile_header").eq(0).prepend(htmlCode); }
-
-                $('#btn_save_settings').on('click', saveSettings);
-                $('#btn_start_session').on('click', startBalancerSession);
-                $('#btn_stop_session').on('click', stopBalancerSession);
-
                 makeThingsCollapsible();
                 createList();
             });
         });
     }
 
+    // ============================================================================
+    //  NOWA FUNKCJA DO ZMIANY TYTUŁU KARTY
+    // ============================================================================
+    function initTitleChanger() {
+        const originalTitle = document.title;
+        // Funkcja nie zrobi nic, jeśli prefiks w ustawieniach jest pusty
+        if (!settings.idleTitlePrefix || settings.idleTitlePrefix.trim() === "") {
+            return;
+        }
+
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                document.title = `${settings.idleTitlePrefix} | ${originalTitle}`;
+            } else {
+                document.title = originalTitle;
+            }
+        });
+
+        // Ustaw tytuł od razu, jeśli karta jest już nieaktywna przy ładowaniu skryptu
+        if (document.hidden) {
+             document.title = `${settings.idleTitlePrefix} | ${originalTitle}`;
+        }
+    }
+
+
+    // Uruchomienie głównych funkcji
     displayEverything();
+    initTitleChanger(); // Uruchomienie mechanizmu zmiany tytułu
 
 })();
