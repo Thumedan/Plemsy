@@ -548,7 +548,7 @@
 
                 const sessionActive = isBalancerSessionActive();
                 const statusColor = sessionActive && settings.autoSendEnabled ? 'green' : 'red';
-                const statusText = sessionActive && settings.autoSendEnabled ? 'AKTYWNE (SESJA)' : 'NIETAKTYWNE';
+                const statusText = sessionActive && settings.autoSendEnabled ? 'AKTYWNE (SESJA)' : 'NIEAKTYWNE';
 
                 let htmlCode = `<div id="restart">${totalsAndAverages}</div>
                 <div id="sendResources" class="flex-container sophHeader" style="position: relative; padding: 5px;">
