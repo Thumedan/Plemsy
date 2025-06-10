@@ -1,14 +1,15 @@
 // ==UserScript==
 // @name                Snajper
-// @version     	    1.0
+// @version     	    1.1
 // @description         Planuj ataki i wsparcia, zoptymalizowane pod kątem maksymalnej precyzji. Używa Service Workerów przeglądarki. Wyświetla licznik do wysłania.
 // @author              KUKI (z modyfikacjami)
 // @icon                https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEiHwVUssXEmxpfbbQyX4dkysx69ogUuid3s4xfDb0QIIBom3XC7F3v1beXEJjgp-MaAVfmcF83hvBQtRITZugnA4ie5btSdEd7GmwgteVv8oOGrAP8roAUS7VTlXdqHTq0MAhfdkpExBjQ/s0/Flag_of_Poland.gif
 // @match               https://*.plemiona.pl/game.php?village=*&screen=place&try=confirm*
+// @match               https://*.plemiona.pl/game.php?village=*&screen=map*
 // @downloadURL         https://raw.githubusercontent.com/Thumedan/Plemsy/main/Snajper.user.js
 // @updateURL           https://raw.githubusercontent.com/Thumedan/Plemsy/main/Snajper.user.js
 // @grant               GM_addStyle
-// @supportURL https://github.com/Thumedan/Plemsy/issues
+// @supportURL          https://github.com/Thumedan/Plemsy/issues
 // ==/UserScript==
 
 (async (ModuleLoader) => {
@@ -46,6 +47,11 @@
         attackTimeForTimer: null, // Do przechowywania czasu wysłania dla licznika
 
         init: function () {
+            // Sprawdź, czy interfejs został już dodany, aby uniknąć duplikacji
+            if ($('#ACSbutton').length > 0) {
+                return;
+            }
+            
             // Create some Html
             $($('#command-data-form').find('tbody')[0]).append(
                 `<tr>
@@ -342,7 +348,9 @@
             $('#command-data-form').find('td:contains("Trwanie:")').next().text().trim() !== "" &&
             typeof Timing !== 'undefined' && Timing.getCurrentServerTime) {
             CommandSender.init();
-            clearInterval(_temporaryLoop);
+            // Pętla nie jest już zatrzymywana (clearInterval), aby mogła obsłużyć
+            // wielokrotne otwieranie okna potwierdzenia na mapie bez przeładowania strony.
+            // Funkcja init() ma teraz zabezpieczenie przed duplikowaniem interfejsu.
         }
     }, 100);
 
