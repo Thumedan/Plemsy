@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         BALANCER
 // @namespace    plemsy
-// @version      1.2.1
-// @description  Korekta graficzna
-// @author       Sophie "Shinko to Kuma" (oryginał), Modyfikacja: KUKI I GOOGLE
+// @version      1.2.2
+// @description  Korekta graficzna z funkcją wykluczania wiosek.
+// @author       Sophie "Shinko to Kuma" (baza skryptu); KUKI (automatyzacja i nowe funkcje)
 // @match        *://*/game.php?*&screen=market&mode=send*
 // @downloadURL  https://raw.githubusercontent.com/Thumedan/Plemsy/main/BALANCER.user.js
 // @updateURL    https://raw.githubusercontent.com/Thumedan/Plemsy/main/BALANCER.user.js
@@ -97,9 +97,14 @@
     .collapsible { background-color: #32353b; color: white; cursor: pointer; padding: 10px; width: 100%; border: none; text-align: left; outline: none; font-size: 15px; }
     .active, .collapsible:hover { background-color:  #36393f; }
     .collapsible:after { content: '+'; color: white; font-weight: bold; float: right; margin-left: 5px; } .active:after { content: "-"; }
-    .content { padding: 0 5px; max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out; background-color:  #5b5f66; color: white; }
+    .content { padding: 0 5px; max-height: 0; overflow-y: auto; transition: max-height 0.3s ease-out, padding 0.3s ease-out; background-color:  #5b5f66; color: white; box-sizing: border-box; }
     .flex-container { display: flex; justify-content: space-between; align-items:center; flex-wrap: wrap; }
     .submenu{ display:flex; flex-direction:column; position: absolute; left:0px; top:37px; min-width:240px; }
+    #village_exclusion_container { max-height: 200px; overflow-y: auto; border: 1px solid #202225; padding: 5px; margin-top: 5px; background-color: #32353b; }
+    #village_exclusion_container label { margin-left: 5px; }
+    /* NOWY STYL DLA LINKÓW "ZAZNACZ/ODZNACZ" */
+    .exclusion-toggle-link { color: #40D0E0; text-decoration: none; cursor: pointer; }
+    .exclusion-toggle-link:hover { text-decoration: underline; }
     </style>`;
 
     $("#contentContainer").eq(0).prepend(cssClassesSophie);
@@ -109,7 +114,7 @@
     if (localStorage.getItem("settingsWHBalancerSophie") != null) {
         settings = JSON.parse(localStorage.getItem("settingsWHBalancerSophie"));
     } else {
-        settings = { "isMinting": false, "highPoints": 8000, "highFarm": 23000, "lowPoints": 3000, "builtOutPercentage": 0.25, "needsMorePercentage": 0.85, "autoSendEnabled": false, "minRefresh": 30, "maxRefresh": 60, "idleTitlePrefix": "(SUROWCE)" };
+        settings = { "isMinting": false, "highPoints": 8000, "highFarm": 23000, "lowPoints": 3000, "builtOutPercentage": 0.25, "needsMorePercentage": 0.85, "autoSendEnabled": false, "minRefresh": 30, "maxRefresh": 60, "idleTitlePrefix": "(SUROWCE)", "excludedVillages": [] };
         localStorage.setItem("settingsWHBalancerSophie", JSON.stringify(settings));
     }
 
@@ -122,7 +127,9 @@
     if (settings.autoSendEnabled === undefined) settings.autoSendEnabled = false;
     if (settings.minRefresh === undefined) settings.minRefresh = 30;
     if (settings.maxRefresh === undefined) settings.maxRefresh = 60;
-    if (settings.idleTitlePrefix === undefined) settings.idleTitlePrefix = "(SUROWCE)"; // NOWA OPCJA
+    if (settings.idleTitlePrefix === undefined) settings.idleTitlePrefix = "(SUROWCE)";
+    if (settings.excludedVillages === undefined) settings.excludedVillages = [];
+
 
     if ($("#sendResources")[0]) { $("#sendResources")[0].remove(); $("#totals")[0].remove(); }
 
@@ -148,7 +155,13 @@
         settings.needsMorePercentage = parseFloat($("input[name='needsMorePercentage']").val());
         settings.minRefresh = parseInt($("input[name='minRefresh']").val());
         settings.maxRefresh = parseInt($("input[name='maxRefresh']").val());
-        settings.idleTitlePrefix = $("input[name='idleTitlePrefix']").val(); // ZAPIS NOWEJ OPCJI
+        settings.idleTitlePrefix = $("input[name='idleTitlePrefix']").val();
+
+        const excludedIds = [];
+        $('input[name="excluded_village_checkbox"]:checked').each(function() {
+            excludedIds.push($(this).val());
+        });
+        settings.excludedVillages = excludedIds;
 
         localStorage.setItem("settingsWHBalancerSophie", JSON.stringify(settings));
         UI.SuccessMessage("Ustawienia zapisane! Odświeżanie interfejsu...");
@@ -216,16 +229,59 @@
 
     function makeThingsCollapsible() {
         var coll = $(".collapsible");
-        coll.off('click').on('click', function () {
+        coll.off('click').on('click', function() {
             this.classList.toggle("active");
             var content = this.nextElementSibling;
-            if (content.style.maxHeight) {
+
+            if (content.style.maxHeight && content.style.maxHeight !== "0px") {
+                content.style.paddingTop = null;
+                content.style.paddingBottom = null;
                 content.style.maxHeight = null;
             } else {
-                content.style.maxHeight = content.scrollHeight + "px";
+                const buttonRect = this.getBoundingClientRect();
+                const mainContent = document.getElementById('content_value');
+                let calculatedHeight = 400;
+
+                if (mainContent) {
+                    const mainContentRect = mainContent.getBoundingClientRect();
+                    const spaceBelow = mainContentRect.bottom - buttonRect.bottom;
+                    const margin = 20;
+                    calculatedHeight = spaceBelow - margin;
+                }
+
+                if (calculatedHeight < 250) {
+                    calculatedHeight = 250;
+                }
+
+                content.style.paddingTop = '10px';
+                content.style.paddingBottom = '10px';
+                content.style.maxHeight = calculatedHeight + "px";
             }
         });
     }
+
+    // NOWA FUNKCJONALNOŚĆ: Dodano linki "Zaznacz/Odznacz wszystkie"
+    function generateVillageExclusionUI(allVillages) {
+        let sortedVillages = [...allVillages].sort((a, b) => a.name.localeCompare(b.name));
+        let html = `<b style="display: block; margin-top: 10px;">Wyklucz wioski z transportów:</b>
+                    <div id="exclusion_controls" style="margin-bottom: 5px;">
+                        <a href="#" id="select_all_villages" class="exclusion-toggle-link">Zaznacz wszystkie</a> |
+                        <a href="#" id="deselect_all_villages" class="exclusion-toggle-link">Odznacz wszystkie</a>
+                    </div>
+                    <div id="village_exclusion_container">`;
+
+        sortedVillages.forEach(village => {
+            const isChecked = settings.excludedVillages.includes(village.id);
+            html += `<div>
+                        <input type="checkbox" name="excluded_village_checkbox" value="${village.id}" id="exclude_${village.id}" ${isChecked ? 'checked' : ''}>
+                        <label for="exclude_${village.id}">${village.name}</label>
+                     </div>`;
+        });
+
+        html += '</div>';
+        return html;
+    }
+
 
     window.saveSettings = saveSettings;
     window.sendResource = sendResource;
@@ -402,22 +458,50 @@
                     for (let i = 0; i < allWoodObjects.length; i++) { let n; n = allWoodObjects[i].textContent.replace(/\./g, '').replace(',', ''); allWoodTotals.push(n); n = allClayObjects[i].textContent.replace(/\./g, '').replace(',', ''); allClayTotals.push(n); n = allIronObjects[i].textContent.replace(/\./g, '').replace(',', ''); allIronTotals.push(n); }
                     for (let i = 0; i < allVillages.length; i++) { warehouseCapacity.push(allIronObjects[i].parentElement.nextElementSibling.innerHTML); availableMerchants.push(allIronObjects[i].parentElement.nextElementSibling.nextElementSibling.innerText.match(/(\d*)\/(\d*)/)[1]); totalMerchants.push(allIronObjects[i].parentElement.nextElementSibling.nextElementSibling.innerText.match(/(\d*)\/(\d*)/)[2]); farmSpaceUsed.push(allIronObjects[i].parentElement.nextElementSibling.nextElementSibling.nextElementSibling.innerText.match(/(\d*)\/(\d*)/)[1]); farmSpaceTotal.push(allIronObjects[i].parentElement.nextElementSibling.nextElementSibling.nextElementSibling.innerText.match(/(\d*)\/(\d*)/)[2]); villagePoints.push(allWoodObjects[i].parentElement.previousElementSibling.innerText.replace(/\./g, '').replace(',', '')); }
                 }
-                for (let i = 0; i < allVillages.length; i++) { villagesData.push({ "id": allVillages[i].dataset.id, "points": villagePoints[i], "url": allVillages[i].children[0].children[0].href, "name": allVillages[i].innerText.trim(), "wood": allWoodTotals[i], "stone": allClayTotals[i], "iron": allIronTotals[i], "availableMerchants": availableMerchants[i], "totalMerchants": totalMerchants[i], "warehouseCapacity": warehouseCapacity[i], "farmSpaceUsed": farmSpaceUsed[i], "farmSpaceTotal": farmSpaceTotal[i] }); }
+
+                let fullVillagesData = [];
+                for (let i = 0; i < allVillages.length; i++) {
+                    fullVillagesData.push({ "id": allVillages[i].dataset.id, "points": villagePoints[i], "url": allVillages[i].children[0].children[0].href, "name": allVillages[i].innerText.trim(), "wood": allWoodTotals[i], "stone": allClayTotals[i], "iron": allIronTotals[i], "availableMerchants": availableMerchants[i], "totalMerchants": totalMerchants[i], "warehouseCapacity": warehouseCapacity[i], "farmSpaceUsed": farmSpaceUsed[i], "farmSpaceTotal": farmSpaceTotal[i] });
+                }
+
+                const exclusionUIHtml = generateVillageExclusionUI(fullVillagesData);
+                villagesData = fullVillagesData.filter(v => !settings.excludedVillages.includes(v.id));
+                warehouseCapacity = villagesData.map(v => v.warehouseCapacity);
+
                 villagesData.sort((a, b) => (parseInt(a.points) < parseInt(b.points)) ? 1 : -1);
                 totalWood = 0; totalStone = 0; totalIron = 0;
-                for (let i in allWoodTotals) { totalWood += parseInt(allWoodTotals[i]); } for (let i in allClayTotals) { totalStone += parseInt(allClayTotals[i]); } for (let i in allIronTotals) { totalIron += parseInt(allIronTotals[i]); }
-                for (let o = 0; o < Object.keys(incomingRes).length; o++) { totalWood += incomingRes[Object.keys(incomingRes)[o]].wood; totalStone += incomingRes[Object.keys(incomingRes)[o]].stone; totalIron += incomingRes[Object.keys(incomingRes)[o]].iron; }
-                var woodAverage = Math.floor(totalWood / warehouseCapacity.length); var stoneAverage = Math.floor(totalStone / warehouseCapacity.length); var ironAverage = Math.floor(totalIron / warehouseCapacity.length);
+
+                for (let v of villagesData) {
+                    totalWood += parseInt(v.wood);
+                    totalStone += parseInt(v.stone);
+                    totalIron += parseInt(v.iron);
+                }
+
+                for (let o = 0; o < Object.keys(incomingRes).length; o++) {
+                    const villageId = Object.keys(incomingRes)[o];
+                    if (villagesData.some(v => v.id === villageId)) {
+                        totalWood += incomingRes[villageId].wood;
+                        totalStone += incomingRes[villageId].stone;
+                        totalIron += incomingRes[villageId].iron;
+                    }
+                }
+
+                var woodAverage = villagesData.length > 0 ? Math.floor(totalWood / villagesData.length) : 0;
+                var stoneAverage = villagesData.length > 0 ? Math.floor(totalStone / villagesData.length) : 0;
+                var ironAverage = villagesData.length > 0 ? Math.floor(totalIron / villagesData.length) : 0;
+
                 var actualWoodAverage, actualStoneAverage, actualIronAverage;
                 if (settings.isMinting == false) {
                     actualWoodAverage = woodAverage; actualStoneAverage = stoneAverage; actualIronAverage = ironAverage;
                     var actualTotalWood = totalWood; var actualTotalStone = totalStone; var actualTotalIron = totalIron;
-                    var actualWHCountNeedsBalancingWood = warehouseCapacity.length; var actualWHCountNeedsBalancingStone = warehouseCapacity.length; var actualWHCountNeedsBalancingIron = warehouseCapacity.length;
-                    for (let i = 0; i < warehouseCapacity.length; i++) {
-                        actualWoodAverage = Math.floor(actualTotalWood / actualWHCountNeedsBalancingWood); actualStoneAverage = Math.floor(actualTotalStone / actualWHCountNeedsBalancingStone); actualIronAverage = Math.floor(actualTotalIron / actualWHCountNeedsBalancingIron);
-                        if (warehouseCapacity[i] < actualWoodAverage) { actualTotalWood -= actualWoodAverage - warehouseCapacity[i] * settings.needsMorePercentage; actualWHCountNeedsBalancingWood--; }
-                        if (warehouseCapacity[i] < actualStoneAverage) { actualTotalStone -= actualStoneAverage - warehouseCapacity[i] * settings.needsMorePercentage; actualWHCountNeedsBalancingStone--; }
-                        if (warehouseCapacity[i] < actualIronAverage) { actualTotalIron -= actualIronAverage - warehouseCapacity[i] * settings.needsMorePercentage; actualWHCountNeedsBalancingIron--; }
+                    var actualWHCountNeedsBalancingWood = villagesData.length; var actualWHCountNeedsBalancingStone = villagesData.length; var actualWHCountNeedsBalancingIron = villagesData.length;
+                    for (let i = 0; i < villagesData.length; i++) {
+                        actualWoodAverage = actualWHCountNeedsBalancingWood > 0 ? Math.floor(actualTotalWood / actualWHCountNeedsBalancingWood) : 0;
+                        actualStoneAverage = actualWHCountNeedsBalancingStone > 0 ? Math.floor(actualTotalStone / actualWHCountNeedsBalancingStone) : 0;
+                        actualIronAverage = actualWHCountNeedsBalancingIron > 0 ? Math.floor(actualTotalIron / actualWHCountNeedsBalancingIron) : 0;
+                        if (villagesData[i].warehouseCapacity < actualWoodAverage) { actualTotalWood -= actualWoodAverage - villagesData[i].warehouseCapacity * settings.needsMorePercentage; actualWHCountNeedsBalancingWood--; }
+                        if (villagesData[i].warehouseCapacity < actualStoneAverage) { actualTotalStone -= actualStoneAverage - villagesData[i].warehouseCapacity * settings.needsMorePercentage; actualWHCountNeedsBalancingStone--; }
+                        if (villagesData[i].warehouseCapacity < actualIronAverage) { actualTotalIron -= actualIronAverage - villagesData[i].warehouseCapacity * settings.needsMorePercentage; actualWHCountNeedsBalancingIron--; }
                     }
                 } else { actualWoodAverage = woodAverage; actualStoneAverage = stoneAverage; actualIronAverage = ironAverage; }
                 totalsAndAverages = `<div id='totals' class='sophHeader' border=0><table id='totalsAndAverages' width='100%'><tr class='sophRowA'><td>${langShinko[9]}: ${numberWithCommas(totalWood)}</td><td>${langShinko[10]}: ${numberWithCommas(totalStone)}</td><td>${langShinko[11]}: ${numberWithCommas(totalIron)}</td></tr><tr class='sophRowB'><td>${langShinko[12]}: ${numberWithCommas(woodAverage)}</td><td>${langShinko[13]}: ${numberWithCommas(stoneAverage)}</td><td>${langShinko[14]}: ${numberWithCommas(ironAverage)}</td></tr><tr class='sophRowA'><td>Średnia Drewna po korekcie: ${numberWithCommas(actualWoodAverage)}</td><td>Średnia Gliny po korekcie: ${numberWithCommas(actualStoneAverage)}</td><td>Średnia Żelaza po korekcie: ${numberWithCommas(actualIronAverage)}</td></tr></table>`;
@@ -484,6 +568,7 @@
                                     <tr><td style="padding: 6px;"><label for="minRefresh">Min. odświeżenie (min)</label></td><td style="padding: 6px;"><input type="number" name="minRefresh" min="1" value="${settings.minRefresh}" style="width:60px; color: black;"></td></tr>
                                     <tr><td style="padding: 6px;"><label for="maxRefresh">Max. odświeżenie (min)</label></td><td style="padding: 6px;"><input type="number" name="maxRefresh" min="1" value="${settings.maxRefresh}" style="width:60px; color: black;"></td></tr>
                                     <tr><td style="padding: 6px;"><label for="idleTitlePrefix">Tytuł nieaktywnej karty</label></td><td style="padding: 6px;"><input type="text" name="idleTitlePrefix" value="${settings.idleTitlePrefix}" style="width:150px; color: black;"></td></tr>
+                                    <tr class='sophRowA'><td style="padding: 6px;" colspan="2"><hr><div id="village_exclusion_placeholder"></div></td></tr>
                                     <tr class='sophRowA'><td style="padding: 6px;" colspan="2"><hr></td></tr>
                                     <tr><td style="padding: 6px;" colspan="2"><input type="button" class="btn evt-confirm-btn btn-confirm-yes" value="Zapisz i uruchom ponownie" onclick="saveSettings();"/></td></tr>
                                     <td colspan="2" style="padding: 6px;"><p style="padding:5px"><font size="1">Script by Sophie "Shinko to Kuma"</font></p></td>
@@ -504,6 +589,20 @@
                 </tbody></table>`;
 
                 $("#content_value").eq(0).prepend(htmlCode);
+                $("#village_exclusion_placeholder").html(exclusionUIHtml);
+
+                // NOWA FUNKCJONALNOŚĆ: Logika do linków "Zaznacz/Odznacz wszystkie"
+                $('#select_all_villages').on('click', function(e) {
+                    e.preventDefault();
+                    $('input[name="excluded_village_checkbox"]').prop('checked', true);
+                });
+
+                $('#deselect_all_villages').on('click', function(e) {
+                    e.preventDefault();
+                    $('input[name="excluded_village_checkbox"]').prop('checked', false);
+                });
+
+
                 if (is_mobile == true) { $("#mobile_header").eq(0).prepend(htmlCode); }
                 makeThingsCollapsible();
                 createList();
@@ -512,11 +611,10 @@
     }
 
     // ============================================================================
-    //  NOWA FUNKCJA DO ZMIANY TYTUŁU KARTY
+    //  FUNKCJA DO ZMIANY TYTUŁU KARTY
     // ============================================================================
     function initTitleChanger() {
         const originalTitle = document.title;
-        // Funkcja nie zrobi nic, jeśli prefiks w ustawieniach jest pusty
         if (!settings.idleTitlePrefix || settings.idleTitlePrefix.trim() === "") {
             return;
         }
@@ -529,7 +627,6 @@
             }
         });
 
-        // Ustaw tytuł od razu, jeśli karta jest już nieaktywna przy ładowaniu skryptu
         if (document.hidden) {
              document.title = `${settings.idleTitlePrefix} | ${originalTitle}`;
         }
@@ -538,6 +635,6 @@
 
     // Uruchomienie głównych funkcji
     displayEverything();
-    initTitleChanger(); // Uruchomienie mechanizmu zmiany tytułu
+    initTitleChanger();
 
 })();
