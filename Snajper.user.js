@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name                Snajper
-// @version     	    1.1
+// @version     	    1.2
 // @description         Planuj ataki i wsparcia, zoptymalizowane pod kątem maksymalnej precyzji. Używa Service Workerów przeglądarki. Wyświetla licznik do wysłania.
 // @author              KUKI (z modyfikacjami)
 // @icon                https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEiHwVUssXEmxpfbbQyX4dkysx69ogUuid3s4xfDb0QIIBom3XC7F3v1beXEJjgp-MaAVfmcF83hvBQtRITZugnA4ie5btSdEd7GmwgteVv8oOGrAP8roAUS7VTlXdqHTq0MAhfdkpExBjQ/s0/Flag_of_Poland.gif
@@ -27,15 +27,6 @@
     } catch (e) {
         console.warn('ACS: Nie udało się załadować utils/notify-utils, niektóre powiadomienia mogą nie działać.', e);
     }
-
-
-    // Controls the window title
-    if (typeof TwFramework !== 'undefined' && TwFramework.setIdleTitlePreffix) {
-        TwFramework.setIdleTitlePreffix('WYSYŁANIE', document.title);
-    } else {
-        console.warn('ACS: TwFramework lub setIdleTitlePreffix nie jest dostępne.');
-    }
-
 
     const CommandSender = {
         confirmButton: null,
@@ -347,6 +338,12 @@
             typeof jQuery !== 'undefined' &&
             $('#command-data-form').find('td:contains("Trwanie:")').next().text().trim() !== "" &&
             typeof Timing !== 'undefined' && Timing.getCurrentServerTime) {
+
+            // Zmiana nazwy zakładki nastąpi dopiero, gdy okno wysyłania wojsk jest aktywne
+            if (typeof TwFramework !== 'undefined' && TwFramework.setIdleTitlePreffix) {
+                TwFramework.setIdleTitlePreffix('WYSYŁANIE', document.title);
+            }
+
             CommandSender.init();
             // Pętla nie jest już zatrzymywana (clearInterval), aby mogła obsłużyć
             // wielokrotne otwieranie okna potwierdzenia na mapie bez przeładowania strony.
