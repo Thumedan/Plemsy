@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         ZBIERAK TOP
 // @description  Provides an in-game calculator utility for scavenging within the Tribal Wars online game. Original calculation logic credit: Daniel Van Den Berg. Base script structure by Kits. MODIFIED with auto-refresh and restart loop by KUKI & AI Assistant.
-// @version      1.1
+// @version      1.0
 // @author       KUKI
-// @match        https://*.plemiona.pl/game.php*screen=place*mode=scavenge
+// @match        https://*.plemiona.pl/game.php*screen=place*mode=scavenge*
 // @downloadURL  https://raw.githubusercontent.com/Thumedan/Plemsy/main/ZBIERAK%20TOP.user.js
 // @updateURL    https://raw.githubusercontent.com/Thumedan/Plemsy/main/ZBIERAK%20TOP.user.js
 // @grant        none
