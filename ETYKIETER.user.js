@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         ETYKIETER v2.0
 // @namespace    PLEMIONA
-// @version      2.3
+// @version      2.0
 // @description  Etykietuje po wykryciu zmiany ataków. Odświeża, retry z limitem, fail-safe co 20–30 min. Brak spamu i błędów przy "znikających" atakach. Full control 💪
 // @author       KUKI
 // @match        https://*.plemiona.pl/game.php?village=*&screen=overview_villages&mode=incomings*
 // @match        https://*.plemiona.pl/game.php?screen=overview_villages&mode=incomings&type=unignored&subtype=all&village=*
 // @match        https://*.plemiona.pl/game.php?screen=overview_villages&mode=incomings&type=unignored&subtype=*
+// @downloadURL  https://raw.githubusercontent.com/Thumedan/Plemsy/main/ETYKIETER.user.js
+// @updateURL    https://raw.githubusercontent.com/Thumedan/Plemsy/main/ETYKIETER.user.js
 // @grant        none
 // ==/UserScript==
 
