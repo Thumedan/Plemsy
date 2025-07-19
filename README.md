@@ -23,3 +23,6 @@ Przejdź do strony rozszerzeń Tampermonkey, zazwyczaj przez menu przeglądarki 
 3. Dodaj nowy skrypt:
 Przeciągnij: Jeśli masz plik z rozszerzeniem .user.js, możesz go przeciągnąć do przeglądarki, a Tampermonkey automatycznie doda skrypt. 
 Kopiuj i wklej: Możesz również otworzyć plik .js w edytorze tekstu, skopiować cały kod i wkleić go do edytora skryptu Tampermonkey. 
+
+
+WAŻNE - LICZNIK MS KOLIDUJE ZE ZBIERAKIEM MASOWYM! WYŁĄCZ GO JEŻELI POTRZEBUJESZ MASOWEGO ZBIERAKA.
