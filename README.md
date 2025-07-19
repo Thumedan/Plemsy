@@ -25,4 +25,4 @@ Przeciągnij: Jeśli masz plik z rozszerzeniem .user.js, możesz go przeciągną
 Kopiuj i wklej: Możesz również otworzyć plik .js w edytorze tekstu, skopiować cały kod i wkleić go do edytora skryptu Tampermonkey. 
 
 
-WAŻNE - LICZNIK MS KOLIDUJE ZE ZBIERAKIEM MASOWYM! WYŁĄCZ GO JEŻELI POTRZEBUJESZ MASOWEGO ZBIERAKA.
+********WAŻNE - LICZNIK MS KOLIDUJE ZE ZBIERAKIEM MASOWYM! WYŁĄCZ GO JEŻELI POTRZEBUJESZ MASOWEGO ZBIERAKA.*************
