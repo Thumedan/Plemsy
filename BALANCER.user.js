@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BALANCER
 // @namespace    plemsy
-// @version      1.2.2
+// @version      1.3.0
 // @description  Korekta graficzna z funkcją wykluczania wiosek.
 // @author       Sophie "Shinko to Kuma" (baza skryptu); KUKI (automatyzacja i nowe funkcje)
 // @match        *://*/game.php?*&screen=market&mode=send*
@@ -46,7 +46,6 @@
     // KONIEC: Logika aktywnej sesji
     // ======================================================================
 
-    //script by Sophie "Shinko to Kuma". Skype: live:sophiekitsune discord: Sophie#2418 website: https://shinko-to-kuma.my-free.website/
     var testPage;
     var is_mobile = !!navigator.userAgent.match(/iphone|android|blackberry/ig) || false;
     var warehouseCapacity = [];
@@ -102,7 +101,6 @@
     .submenu{ display:flex; flex-direction:column; position: absolute; left:0px; top:37px; min-width:240px; }
     #village_exclusion_container { max-height: 200px; overflow-y: auto; border: 1px solid #202225; padding: 5px; margin-top: 5px; background-color: #32353b; }
     #village_exclusion_container label { margin-left: 5px; }
-    /* NOWY STYL DLA LINKÓW "ZAZNACZ/ODZNACZ" */
     .exclusion-toggle-link { color: #40D0E0; text-decoration: none; cursor: pointer; }
     .exclusion-toggle-link:hover { text-decoration: underline; }
     </style>`;
@@ -260,7 +258,6 @@
         });
     }
 
-    // NOWA FUNKCJONALNOŚĆ: Dodano linki "Zaznacz/Odznacz wszystkie"
     function generateVillageExclusionUI(allVillages) {
         let sortedVillages = [...allVillages].sort((a, b) => a.name.localeCompare(b.name));
         let html = `<b style="display: block; margin-top: 10px;">Wyklucz wioski z transportów:</b>
@@ -391,6 +388,16 @@
     }
 
     function numberWithCommas(x) { return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
+
+    // NOWA FUNKCJA Z ORYGINALNEGO SKRYPTU
+    function checkDistance(x1, y1, x2, y2) {
+        var a = x1 - x2;
+        var b = y1 - y2;
+        var distance = Math.round(Math.hypot(a, b));
+        return distance;
+    }
+
+
     function addDistanceToArray(array) {
         array.forEach(item => {
             const source = villagesData.find(v => v.id == item.source);
@@ -536,14 +543,114 @@
                         else { let tempPercWood = excessResources[p][0].wood / tempAllExcessCombined; let tempPercStone = excessResources[p][1].stone / tempAllExcessCombined; let tempPercIron = excessResources[p][2].iron / tempAllExcessCombined; merchantOrders.push({ "villageID": villagesData[p].id, "x": villagesData[p].name.match(/(\d+)\|(\d+)/)[1], "y": villagesData[p].name.match(/(\d+)\|(\d+)/)[2], "wood": Math.floor(tempPercWood * villagesData[p].availableMerchants), "stone": Math.floor(tempPercStone * villagesData[p].availableMerchants), "iron": Math.floor(tempPercIron * villagesData[p].availableMerchants) }); }
                     }
                 }
+
+                // ======================================================================
+                // POCZĄTEK: ZASTĄPIONY BLOK LOGIKI DYSTRYBUCJI
+                // ======================================================================
+
+                // --- DREWNO ---
                 for (let q = shortageResources.length - 1; q >= 0; q--) {
-                    $("#progress").css("width", `${(shortageResources.length - q) / shortageResources.length * 100}%`);
-                    for (let d = 0; d < merchantOrders.length; d++) { merchantOrders[d].distance = addDistanceToArray([merchantOrders[d]])[0].distance; }
+                    $("#progress").css("width", `${(shortageResources.length - q) / shortageResources.length * 100 / 3}%`);
+                    for (let d = 0; d < merchantOrders.length; d++) {
+                        merchantOrders[d].distance = checkDistance(merchantOrders[d].x, merchantOrders[d].y, villagesData[q].name.match(/(\d+)\|(\d+)/)[1], villagesData[q].name.match(/(\d+)\|(\d+)/)[2]);
+                    }
                     merchantOrders.sort(function (left, right) { return left.distance - right.distance; });
-                    if (shortageResources[q][0].wood > 0) { while (shortageResources[q][0].wood > 0) { var totalWoodToTrade = 0; for (let m = 0; m < merchantOrders.length; m++) { totalWoodToTrade += merchantOrders[m].wood; if (merchantOrders[m].wood > 0) { if (shortageResources[q][0].wood <= merchantOrders[m].wood * 1000) { links.push({ "source": merchantOrders[m].villageID, "target": villageID[q], "wood": shortageResources[q][0].wood }); merchantOrders[m].wood -= shortageResources[q][0].wood / 1000; shortageResources[q][0].wood = 0; } else { links.push({ "source": merchantOrders[m].villageID, "target": villageID[q], "wood": merchantOrders[m].wood * 1000 }); shortageResources[q][0].wood -= merchantOrders[m].wood * 1000; merchantOrders[m].wood = 0; } } if (shortageResources[q][0].wood <= 0) { break; } } if (totalWoodToTrade == 0) { break; } } }
-                    if (shortageResources[q][1].stone > 0) { while (shortageResources[q][1].stone > 0) { var totalStoneToTrade = 0; for (let m = 0; m < merchantOrders.length; m++) { totalStoneToTrade += merchantOrders[m].stone; if (merchantOrders[m].stone > 0) { if (shortageResources[q][1].stone <= merchantOrders[m].stone * 1000) { links.push({ "source": merchantOrders[m].villageID, "target": villageID[q], "stone": shortageResources[q][1].stone }); merchantOrders[m].stone -= shortageResources[q][1].stone / 1000; shortageResources[q][1].stone = 0; } else { links.push({ "source": merchantOrders[m].villageID, "target": villageID[q], "stone": merchantOrders[m].stone * 1000 }); shortageResources[q][1].stone -= merchantOrders[m].stone * 1000; merchantOrders[m].stone = 0; } } if (shortageResources[q][1].stone <= 0) { break; } } if (totalStoneToTrade == 0) { break; } } }
-                    if (shortageResources[q][2].iron > 0) { while (shortageResources[q][2].iron > 0) { var totalIronToTrade = 0; for (let m = 0; m < merchantOrders.length; m++) { totalIronToTrade += merchantOrders[m].iron; if (merchantOrders[m].iron > 0) { if (shortageResources[q][2].iron <= merchantOrders[m].iron * 1000) { links.push({ "source": merchantOrders[m].villageID, "target": villageID[q], "iron": shortageResources[q][2].iron }); merchantOrders[m].iron -= shortageResources[q][2].iron / 1000; shortageResources[q][2].iron = 0; } else { links.push({ "source": merchantOrders[m].villageID, "target": villageID[q], "iron": merchantOrders[m].iron * 1000 }); shortageResources[q][2].iron -= merchantOrders[m].iron * 1000; merchantOrders[m].iron = 0; } } if (shortageResources[q][2].iron <= 0) { break; } } if (totalIronToTrade == 0) { break; } } }
+
+                    if (shortageResources[q][0].wood > 0) {
+                        while (shortageResources[q][0].wood > 0) {
+                            let totalWoodToTrade = 0;
+                            for (let m = 0; m < merchantOrders.length; m++) {
+                                totalWoodToTrade += merchantOrders[m].wood;
+                                if (merchantOrders[m].wood > 0) {
+                                    if (shortageResources[q][0].wood <= merchantOrders[m].wood * 1000) {
+                                        links.push({ "source": merchantOrders[m].villageID, "target": villageID[q], "wood": shortageResources[q][0].wood });
+                                        merchantOrders[m].wood -= shortageResources[q][0].wood / 1000;
+                                        shortageResources[q][0].wood = 0;
+                                    } else {
+                                        links.push({ "source": merchantOrders[m].villageID, "target": villageID[q], "wood": merchantOrders[m].wood * 1000 });
+                                        shortageResources[q][0].wood -= merchantOrders[m].wood * 1000;
+                                        merchantOrders[m].wood = 0;
+                                    }
+                                }
+                                if (shortageResources[q][0].wood <= 0) { break; }
+                            }
+                            if (totalWoodToTrade == 0) {
+                                break;
+                            }
+                        }
+                    }
                 }
+
+                // --- GLINA ---
+                for (let q = shortageResources.length - 1; q >= 0; q--) {
+                    $("#progress").css("width", `${33.3 + (shortageResources.length - q) / shortageResources.length * 100 / 3}%`);
+                    for (let d = 0; d < merchantOrders.length; d++) {
+                        merchantOrders[d].distance = checkDistance(merchantOrders[d].x, merchantOrders[d].y, villagesData[q].name.match(/(\d+)\|(\d+)/)[1], villagesData[q].name.match(/(\d+)\|(\d+)/)[2]);
+                    }
+                    merchantOrders.sort(function (left, right) { return left.distance - right.distance; });
+
+                    if (shortageResources[q][1].stone > 0) {
+                        while (shortageResources[q][1].stone > 0) {
+                            let totalStoneToTrade = 0;
+                            for (let m = 0; m < merchantOrders.length; m++) {
+                                totalStoneToTrade += merchantOrders[m].stone;
+                                if (merchantOrders[m].stone > 0) {
+                                    if (shortageResources[q][1].stone <= merchantOrders[m].stone * 1000) {
+                                        links.push({ "source": merchantOrders[m].villageID, "target": villageID[q], "stone": shortageResources[q][1].stone });
+                                        merchantOrders[m].stone -= shortageResources[q][1].stone / 1000;
+                                        shortageResources[q][1].stone = 0;
+                                    } else {
+                                        links.push({ "source": merchantOrders[m].villageID, "target": villageID[q], "stone": merchantOrders[m].stone * 1000 });
+                                        shortageResources[q][1].stone -= merchantOrders[m].stone * 1000;
+                                        merchantOrders[m].stone = 0;
+                                    }
+                                }
+                                if (shortageResources[q][1].stone <= 0) { break; }
+                            }
+                            if (totalStoneToTrade == 0) {
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // --- ŻELAZO ---
+                for (let q = shortageResources.length - 1; q >= 0; q--) {
+                    $("#progress").css("width", `${66.6 + (shortageResources.length - q) / shortageResources.length * 100 / 3}%`);
+                    for (let d = 0; d < merchantOrders.length; d++) {
+                        merchantOrders[d].distance = checkDistance(merchantOrders[d].x, merchantOrders[d].y, villagesData[q].name.match(/(\d+)\|(\d+)/)[1], villagesData[q].name.match(/(\d+)\|(\d+)/)[2]);
+                    }
+                    merchantOrders.sort(function (left, right) { return left.distance - right.distance; });
+
+                    if (shortageResources[q][2].iron > 0) {
+                        while (shortageResources[q][2].iron > 0) {
+                            let totalIronToTrade = 0;
+                            for (let m = 0; m < merchantOrders.length; m++) {
+                                totalIronToTrade += merchantOrders[m].iron;
+                                if (merchantOrders[m].iron > 0) {
+                                    if (shortageResources[q][2].iron <= merchantOrders[m].iron * 1000) {
+                                        links.push({ "source": merchantOrders[m].villageID, "target": villageID[q], "iron": shortageResources[q][2].iron });
+                                        merchantOrders[m].iron -= shortageResources[q][2].iron / 1000;
+                                        shortageResources[q][2].iron = 0;
+                                    } else {
+                                        links.push({ "source": merchantOrders[m].villageID, "target": villageID[q], "iron": merchantOrders[m].iron * 1000 });
+                                        shortageResources[q][2].iron -= merchantOrders[m].iron * 1000;
+                                        merchantOrders[m].iron = 0;
+                                    }
+                                }
+                                if (shortageResources[q][2].iron <= 0) { break; }
+                            }
+                            if (totalIronToTrade == 0) {
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // ======================================================================
+                // KONIEC: ZASTĄPIONY BLOK LOGIKI DYSTRYBUCJI
+                // ======================================================================
+
                 $("#progress").remove();
 
                 const sessionActive = isBalancerSessionActive();
@@ -591,7 +698,6 @@
                 $("#content_value").eq(0).prepend(htmlCode);
                 $("#village_exclusion_placeholder").html(exclusionUIHtml);
 
-                // NOWA FUNKCJONALNOŚĆ: Logika do linków "Zaznacz/Odznacz wszystkie"
                 $('#select_all_villages').on('click', function(e) {
                     e.preventDefault();
                     $('input[name="excluded_village_checkbox"]').prop('checked', true);
