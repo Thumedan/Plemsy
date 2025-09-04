@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Plemiona Bob Budowniczy - Menadżer Kukiego
 // @namespace    http://tampermonkey.net/
-// @version      1.3.4
+// @version      1.5.0
 // @description  już możecie spać x)
 // @author       kradzione (poprawki Gemini)
 // @match        https://*.plemiona.pl/game.php?village=*&screen=main*
@@ -13,52 +13,36 @@
 (function() {
     'use strict';
 
-    // Configuration
-    const CHECK_INTERVAL = 5 * 61 * 1000; // 5 minutes in milliseconds
-    const WAIT_FOR_HIGHER_PRIORITY = 10 * 60; // Wait up to 10 minutes for higher priority building
+    // Konfiguracja z oryginalnego skryptu
+    const CHECK_INTERVAL = 5 * 61 * 1000;
     const DEBUG = true;
     const STORAGE_KEY = 'tribalWarsBuilderConfig';
 
-    // Extract available buildings from the table
+    // Oryginalna funkcja getAvailableBuildings
     function getAvailableBuildings() {
         debugLog('Starting getAvailableBuildings function');
         const buildings = [];
         const buildingRows = document.querySelectorAll('#buildings tbody tr[id^="main_buildrow_"]');
-        debugLog(`Found ${buildingRows.length} building rows`);
-
-        buildingRows.forEach((row, index) => {
+        buildingRows.forEach((row) => {
             const buildingCell = row.querySelector('td:first-child');
-            if (!buildingCell) {
-                return;
-            }
+            if (!buildingCell) return;
             const buildingId = row.id.replace('main_buildrow_', '');
-            if (!buildingId) {
-                return;
-            }
+            if (!buildingId) return;
             const links = buildingCell.querySelectorAll('a');
             const nameLink = links[1];
-            if (!nameLink) {
-                return;
-            }
+            if (!nameLink) return;
             const inactiveCell = row.querySelector('td.inactive');
-            if (inactiveCell && inactiveCell.textContent.includes('vollständig ausgebaut')) {
-                return;
-            }
+            if (inactiveCell && (inactiveCell.textContent.includes('vollständig ausgebaut') || inactiveCell.textContent.includes('w pełni rozbudowany'))) return;
             const levelSpan = buildingCell.querySelector('span[style*="font-size"]');
             const currentLevel = levelSpan ? levelSpan.textContent.trim() : 'unknown';
             const buildingName = nameLink.textContent.trim();
-
-            buildings.push({
-                id: buildingId,
-                name: buildingName,
-                currentLevel: currentLevel
-            });
+            buildings.push({ id: buildingId, name: buildingName, currentLevel: currentLevel });
         });
         debugLog('Completed getAvailableBuildings. Found buildings:', buildings);
         return buildings;
     }
 
-    // Load saved configuration
+    // Oryginalne funkcje loadConfig i saveConfig
     function loadConfig() {
         const defaultConfig = {
             useCostReduction: true,
@@ -75,7 +59,6 @@
         }
     }
 
-    // Save configuration
     function saveConfig(config) {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
@@ -85,13 +68,14 @@
         }
     }
 
-    // Create UI
+    // Oryginalna, NIETKNIĘTA funkcja tworzenia interfejsu (UI)
     function createUI() {
         debugLog('Starting UI creation');
         const config = loadConfig();
         const buildings = getAvailableBuildings();
         const uiContainer = document.createElement('div');
         uiContainer.style.cssText = 'background: #f4e4bc; padding: 15px; margin: 10px 0; border: 1px solid #603000; font-size: 12px;';
+
         const titleSection = document.createElement('div');
         titleSection.style.marginBottom = '20px';
         const title = document.createElement('h3');
@@ -99,8 +83,10 @@
         title.style.cssText = 'margin: 0 0 5px 0; font-size: 14px; font-weight: bold;';
         titleSection.appendChild(title);
         uiContainer.appendChild(titleSection);
+
         const settingsSection = document.createElement('div');
         settingsSection.style.cssText = 'background: #fff3d9; padding: 10px; border: 1px solid #c1a264; margin-bottom: 15px;';
+
         const costReductionDiv = document.createElement('div');
         costReductionDiv.style.marginBottom = '10px';
         const costReductionCheckbox = document.createElement('input');
@@ -109,31 +95,70 @@
         costReductionCheckbox.checked = config.useCostReduction !== false;
         const costReductionLabel = document.createElement('label');
         costReductionLabel.htmlFor = 'autoBuildCostReduction';
-        costReductionLabel.textContent = ' Use -20% cost reduction when available';
+        costReductionLabel.textContent = ' Używaj redukcji kosztów -20%';
         costReductionLabel.style.cursor = 'pointer';
         costReductionDiv.appendChild(costReductionCheckbox);
         costReductionDiv.appendChild(costReductionLabel);
         settingsSection.appendChild(costReductionDiv);
+
+        const longBuildDiv = document.createElement('div');
+        longBuildDiv.style.marginBottom = '5px';
+        const longBuildCheckbox = document.createElement('input');
+        longBuildCheckbox.type = 'checkbox';
+        longBuildCheckbox.id = 'autoBuildLongReduction';
+        longBuildCheckbox.checked = config.useLongBuildReduction !== false;
+        const longBuildLabel = document.createElement('label');
+        longBuildLabel.htmlFor = 'autoBuildLongReduction';
+        longBuildLabel.textContent = ' Automatycznie skracaj budowy dłuższe niż ';
+        longBuildLabel.style.cursor = 'pointer';
+        const longBuildThreshold = document.createElement('input');
+        longBuildThreshold.type = 'number';
+        longBuildThreshold.min = '0.5';
+        longBuildThreshold.step = '0.5';
+        longBuildThreshold.value = config.longBuildThreshold || 2;
+        longBuildThreshold.style.cssText = 'width: 60px; padding: 2px; margin: 0 5px; background-color: #fff; border: 1px solid #c1a264;';
+        const hoursLabel = document.createElement('span');
+        hoursLabel.textContent = ' godzin';
+        longBuildDiv.appendChild(longBuildCheckbox);
+        longBuildDiv.appendChild(longBuildLabel);
+        longBuildDiv.appendChild(longBuildThreshold);
+        longBuildDiv.appendChild(hoursLabel);
+        settingsSection.appendChild(longBuildDiv);
         uiContainer.appendChild(settingsSection);
+
         const sequenceSection = document.createElement('div');
         const sequenceHeader = document.createElement('div');
         sequenceHeader.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;';
         const sequenceTitle = document.createElement('div');
-        sequenceTitle.textContent = 'Building Sequence';
+        sequenceTitle.textContent = 'Kolejka budowy';
         sequenceTitle.style.cssText = 'font-weight: bold;';
         sequenceHeader.appendChild(sequenceTitle);
+        const clearButton = document.createElement('button');
+        clearButton.textContent = 'Wyczyść wszystko';
+        clearButton.className = 'btn btn-default';
+        clearButton.onclick = () => {
+            sequenceList.innerHTML = '';
+            const emptyText = document.createElement('div');
+            emptyText.textContent = 'Brak budynków w kolejce';
+            emptyText.style.cssText = 'color: #666; font-style: italic; text-align: center;';
+            sequenceList.appendChild(emptyText);
+            UI.SuccessMessage('Kolejka wyczyszczona');
+        };
+        sequenceHeader.appendChild(clearButton);
+        sequenceSection.appendChild(sequenceHeader);
+
         const sequenceList = document.createElement('div');
         sequenceList.id = 'buildSequenceList';
         sequenceList.style.cssText = 'border: 1px solid #c1a264; padding: 10px; margin-bottom: 10px; min-height: 50px; background: #fff3d9;';
-        sequenceSection.appendChild(sequenceHeader);
         sequenceSection.appendChild(sequenceList);
+
         const addControls = document.createElement('div');
         addControls.style.cssText = 'display: flex; gap: 10px; align-items: center; background: #fff3d9; padding: 10px; border: 1px solid #c1a264;';
         const buildingSelect = document.createElement('select');
         buildingSelect.style.cssText = 'flex: 1; padding: 2px; background-color: #fff; border: 1px solid #c1a264;';
         const defaultOption = document.createElement('option');
         defaultOption.value = '';
-        defaultOption.textContent = '-- Select Building --';
+        defaultOption.textContent = '-- Wybierz budynek --';
         defaultOption.disabled = true;
         defaultOption.selected = true;
         buildingSelect.appendChild(defaultOption);
@@ -147,17 +172,18 @@
         untilLevelInput.type = 'number';
         untilLevelInput.min = '1';
         untilLevelInput.style.cssText = 'width: 80px; padding: 2px; background-color: #fff; border: 1px solid #c1a264;';
-        untilLevelInput.placeholder = 'Target lvl';
+        untilLevelInput.placeholder = 'Poziom docelowy';
         const addButton = document.createElement('button');
-        addButton.textContent = 'Add to Sequence';
+        addButton.textContent = 'Dodaj do kolejki';
         addButton.className = 'btn';
         addControls.appendChild(buildingSelect);
-        addControls.appendChild(untilLevelInput);
+addControls.appendChild(untilLevelInput);
         addControls.appendChild(addButton);
         sequenceSection.appendChild(addControls);
         uiContainer.appendChild(sequenceSection);
+
         const saveButton = document.createElement('button');
-        saveButton.textContent = 'Save Settings';
+        saveButton.textContent = 'Zapisz Ustawienia';
         saveButton.className = 'btn';
         saveButton.style.marginTop = '10px';
         uiContainer.appendChild(saveButton);
@@ -172,33 +198,51 @@
             item.style.cssText = 'display: flex; gap: 10px; margin-bottom: 5px; align-items: center; background: #fff; padding: 5px; border: 1px solid #c1a264;';
             const text = document.createElement('span');
             text.style.flex = '1';
-            text.textContent = `${building.name} to level ${targetLevel}`;
+            text.textContent = `${building.name} do poziomu ${targetLevel}`;
+            const buttonsDiv = document.createElement('div');
+            buttonsDiv.style.cssText = 'display: flex; gap: 5px;';
+            const moveUpBtn = document.createElement('button');
+            moveUpBtn.innerHTML = '&#9650;';
+            moveUpBtn.className = 'btn';
+            moveUpBtn.style.padding = '0 5px';
+            moveUpBtn.onclick = () => { const prev = item.previousElementSibling; if (prev) sequenceList.insertBefore(item, prev); };
+            const moveDownBtn = document.createElement('button');
+            moveDownBtn.innerHTML = '&#9660;';
+            moveDownBtn.className = 'btn';
+            moveDownBtn.style.padding = '0 5px';
+            moveDownBtn.onclick = () => { const next = item.nextElementSibling; if (next) sequenceList.insertBefore(next, item); };
             const removeBtn = document.createElement('button');
             removeBtn.innerHTML = '&#10005;';
             removeBtn.className = 'btn';
-            removeBtn.style.cssText = 'padding: 0 5px; color: #ff0000;';
-            removeBtn.onclick = () => item.remove();
+            removeBtn.style.padding = '0 5px';
+            removeBtn.style.color = '#ff0000';
+            removeBtn.onclick = () => {
+                item.remove();
+                if (sequenceList.children.length === 0) {
+                    const emptyText = document.createElement('div');
+                    emptyText.textContent = 'Brak budynków w kolejce';
+                    emptyText.style.cssText = 'color: #666; font-style: italic; text-align: center;';
+                    sequenceList.appendChild(emptyText);
+                }
+            };
+            buttonsDiv.appendChild(moveUpBtn);
+            buttonsDiv.appendChild(moveDownBtn);
+            buttonsDiv.appendChild(removeBtn);
             item.appendChild(text);
-            item.appendChild(removeBtn);
+            item.appendChild(buttonsDiv);
             sequenceList.appendChild(item);
         }
 
         addButton.onclick = () => {
             const buildingId = buildingSelect.value;
-            const targetLevel = parseInt(untilLevelInput.value);
-            if (!buildingId || !targetLevel) {
-                alert('Please select a building and enter a target level.');
-                return;
-            }
+            if (!buildingId) { UI.ErrorMessage('Wybierz budynek'); return; }
             const building = buildings.find(b => b.id === buildingId);
             const currentLevel = parseInt(building.currentLevel.replace(/[^\d]/g, '')) || 0;
-            if (targetLevel <= currentLevel) {
-                alert('Target level must be higher than current level.');
-                return;
-            }
-            if (sequenceList.querySelector('.empty-text')) {
-                sequenceList.innerHTML = '';
-            }
+            const targetLevel = parseInt(untilLevelInput.value);
+            if (!targetLevel) { UI.ErrorMessage('Podaj poziom docelowy'); return; }
+            if (targetLevel <= currentLevel) { UI.ErrorMessage('Poziom docelowy musi być wyższy od obecnego'); return; }
+            const emptyText = sequenceList.querySelector('div[style*="text-align: center"]');
+            if (emptyText) sequenceList.innerHTML = '';
             addSequenceItem(buildingId, targetLevel);
             untilLevelInput.value = '';
             buildingSelect.value = '';
@@ -209,21 +253,21 @@
                 building: item.dataset.buildingId,
                 targetLevel: parseInt(item.dataset.targetLevel)
             }));
+            // Przywrócono zapisywanie wszystkich opcji
             const newConfig = {
                 useCostReduction: costReductionCheckbox.checked,
-                useLongBuildReduction: false,
-                longBuildThreshold: 2,
+                useLongBuildReduction: longBuildCheckbox.checked,
+                longBuildThreshold: parseFloat(longBuildThreshold.value) || 2,
                 buildSequence: sequence
             };
             saveConfig(newConfig);
-            alert('Settings saved!');
+            UI.SuccessMessage(`Ustawienia zapisane! Kolejka zawiera ${sequence.length} budynków.`);
         };
 
         function initializeSequenceList() {
             if (!config.buildSequence || config.buildSequence.length === 0) {
                 const emptyText = document.createElement('div');
-                emptyText.className = 'empty-text';
-                emptyText.textContent = 'No buildings in sequence';
+                emptyText.textContent = 'Brak budynków w kolejce';
                 emptyText.style.cssText = 'color: #666; font-style: italic; text-align: center;';
                 sequenceList.appendChild(emptyText);
             } else {
@@ -242,12 +286,46 @@
     function debugLog(message, data = null) {
         if (!DEBUG) return;
         const timestamp = new Date().toLocaleTimeString();
-        if (data) {
-            console.log(`[${timestamp}] ${message}`, data);
-        } else {
-            console.log(`[${timestamp}] ${message}`);
+        if (data) { console.log(`[${timestamp}] ${message}`, data); }
+        else { console.log(`[${timestamp}] ${message}`); }
+    }
+    
+    // Oryginalna funkcja reduceLongBuilds, która była potrzebna
+    function reduceLongBuilds() {
+        try {
+            const config = loadConfig();
+            if (!config.useLongBuildReduction) return false;
+            const threshold = config.longBuildThreshold || 2;
+            const buildRows = document.querySelectorAll('#buildorder_1, #buildorder_2');
+            for (const row of buildRows) {
+                const durationCell = row.querySelector('td.nowrap.lit-item');
+                if (!durationCell) continue;
+                const timeSpan = durationCell.querySelector('span');
+                if (!timeSpan) continue;
+                const durationText = timeSpan.textContent.trim();
+                if (!durationText) continue;
+                const [hours, minutes, seconds] = durationText.split(':').map(Number);
+                const totalHours = hours + minutes / 60 + seconds / 3600;
+                if (totalHours > threshold) {
+                    const reductionButton = row.querySelector('a.order_feature.btn.btn-btr:not(.btn-instant)');
+                    if (reductionButton) {
+                        debugLog(`Found long build, clicking reduction button for build longer than ${threshold}h`);
+                        reductionButton.click();
+                        return true;
+                    }
+                }
+            }
+            return false;
+        } catch (error) {
+            debugLog('Error in reduceLongBuilds:', error);
+            return false;
         }
     }
+
+
+    // ====================================================================
+    // === TUTAJ ZACZYNAJĄ SIĘ POPRAWIONE FUNKCJE Z LOGIKĄ BUDOWANIA ===
+    // ====================================================================
 
     function getBuildingLevel(buildingName) {
         try {
@@ -256,71 +334,42 @@
             const levelSpan = row.querySelector('span[style*="font-size"]');
             if (!levelSpan) return null;
             const levelMatch = levelSpan.textContent.match(/\d+/);
-            const level = levelMatch ? parseInt(levelMatch[0]) : null;
-            debugLog(`Current level for ${buildingName}: ${level}`);
-            return level;
+            return levelMatch ? parseInt(levelMatch[0]) : 0; // Zwróć 0 jeśli nie znajdzie
         } catch (error) {
             debugLog(`Error getting level for ${buildingName}:`, error);
             return null;
         }
     }
 
-    // === NAPRAWIONA FUNKCJA SPRAWDZANIA MOŻLIWOŚCI BUDOWY ===
     function canBuildResource(buildingName) {
         const config = loadConfig();
-        const buttonSelector = config.useCostReduction
-            ? `#main_buildlink_${buildingName}_cheap`
-            : `a.btn-build[href*="action=upgrade"][href*="id=${buildingName}"]:not([href*="cheap"])`;
-
+        const buttonSelector = config.useCostReduction ?
+            `#main_buildlink_${buildingName}_cheap` :
+            `a.btn-build[href*="action=upgrade"][href*="id=${buildingName}"]:not([href*="cheap"])`;
         try {
             const row = document.querySelector(`#main_buildrow_${buildingName}`);
-            if (!row) {
-                debugLog(`No row found for ${buildingName} when checking buildability`);
-                return false;
-            }
-
+            if (!row) return false;
             const buildButton = row.querySelector(buttonSelector);
-            if (!buildButton) {
-                debugLog(`No build button found for ${buildingName} with selector: ${buttonSelector}`);
-                return false;
-            }
-
+            if (!buildButton) return false;
             const isDisabled = buildButton.classList.contains('btn-disabled') || buildButton.classList.contains('btn-bcr-disabled');
             const hasValidHref = buildButton.getAttribute('href') && buildButton.getAttribute('href') !== '#';
-            const canBuild = hasValidHref && !isDisabled;
-
-            debugLog(`Checking if ${buildingName} can be built:`, {
-                usingCostReduction: config.useCostReduction,
-                selector: buttonSelector,
-                buttonFound: !!buildButton,
-                isDisabled: isDisabled,
-                canBuild: canBuild,
-            });
-
-            return canBuild;
+            return hasValidHref && !isDisabled;
         } catch (error) {
             debugLog(`Error checking if ${buildingName} can be built:`, error);
             return false;
         }
     }
 
-    // === POPRAWIONA FUNKCJA WYKRYWANIA KOLEJKI ===
     function isConstructionInProgress() {
         const buildQueueTable = document.getElementById('build_queue');
-        const isBuilding = buildQueueTable && buildQueueTable.querySelector('tr') !== null;
-        debugLog('Checking for ongoing construction:', {
-            isBuilding: isBuilding,
-            reason: isBuilding ? "Found row (tr) in #build_queue table" : "No rows (tr) in #build_queue table, queue is empty"
-        });
-        return isBuilding;
+        return buildQueueTable && buildQueueTable.querySelector('tr') !== null;
     }
 
     function buildResource(buildingName) {
         const config = loadConfig();
-        const buttonSelector = config.useCostReduction
-            ? `#main_buildlink_${buildingName}_cheap`
-            : `a.btn-build[href*="action=upgrade"][href*="id=${buildingName}"]:not([href*="cheap"])`;
-
+        const buttonSelector = config.useCostReduction ?
+            `#main_buildlink_${buildingName}_cheap` :
+            `a.btn-build[href*="action=upgrade"][href*="id=${buildingName}"]:not([href*="cheap"])`;
         try {
             const row = document.querySelector(`#main_buildrow_${buildingName}`);
             const buildButton = row.querySelector(buttonSelector);
@@ -329,7 +378,6 @@
                 buildButton.click();
                 return true;
             }
-            debugLog(`Could not find a valid build button for ${buildingName}`);
             return false;
         } catch (error) {
             debugLog(`Error building ${buildingName}:`, error);
@@ -339,41 +387,33 @@
 
     function checkAndBuild() {
         debugLog('Starting building check cycle...');
+        reduceLongBuilds(); // Wywołanie funkcji sprawdzającej długie budowy
+
         if (isConstructionInProgress()) {
             debugLog('Construction already in progress, skipping build check');
             return;
         }
-
         const config = loadConfig();
         if (!config.buildSequence || config.buildSequence.length === 0) {
             debugLog('No building sequence configured, stopping.');
             return;
         }
-
         const currentTask = config.buildSequence[0];
         const buildingId = currentTask.building;
         const targetLevel = currentTask.targetLevel;
         const currentLevel = getBuildingLevel(buildingId);
-
         if (currentLevel === null) {
             debugLog(`Could not determine current level for ${buildingId}. Skipping.`);
             return;
         }
-
-        debugLog('Checking sequence item:', {
-            building: buildingId,
-            currentLevel,
-            targetLevel
-        });
-
+        debugLog('Checking sequence item:', { building: buildingId, currentLevel, targetLevel });
         if (currentLevel >= targetLevel) {
             debugLog(`Target level for ${buildingId} reached. Removing from sequence.`);
             config.buildSequence.shift();
             saveConfig(config);
-            setTimeout(() => window.location.reload(), 1500); // Reload to update UI
+            setTimeout(() => window.location.reload(), 1500);
             return;
         }
-
         if (canBuildResource(buildingId)) {
             debugLog(`Building ${buildingId} is available for construction.`);
             buildResource(buildingId);
@@ -382,24 +422,18 @@
         }
     }
 
-    // === GŁÓWNA LOGIKA URUCHOMIENIOWA Z OBSŁUGĄ BŁĘDÓW ===
+    // Główna logika uruchomieniowa
     try {
-        debugLog('Attempting to initialize script...');
         createUI();
-        debugLog('Script UI created. Performing initial build check...');
+        debugLog('Script initialized, performing initial check...');
         checkAndBuild();
-
-        debugLog(`Setting up periodic page reload every ${CHECK_INTERVAL / 1000} seconds`);
         setInterval(() => {
             debugLog('Triggering page reload for next check');
             window.location.reload();
         }, CHECK_INTERVAL);
-
         debugLog('Script setup completed successfully.');
     } catch (error) {
-        console.error('[TRIBAL WARS BUILDER] A critical error occurred during script initialization:');
-        console.error(error);
-        alert('Tribal Wars Auto Builder encountered a critical error. Check the console (F12) for details.');
+        console.error('[BUILDER SCRIPT] A critical error occurred:', error);
+        alert('Builder Script encountered a critical error. Check the console (F12).');
     }
-
 })();
