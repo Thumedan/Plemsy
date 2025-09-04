@@ -35,8 +35,8 @@ KOD DO MK:
 
 
 
-
 Jak zaktualizować localStorage?
+
 Będąc w Plemionach, naciśnij F12, aby otworzyć narzędzia deweloperskie.
 Przejdź do zakładki "Aplikacja" (w Chrome/Edge) lub "Pamięć" (w Firefox).
 W menu po lewej stronie znajdź i rozwiń "Pamięć lokalna" (Local Storage), a następnie kliknij na adres serwera Plemion, na którym grasz.
