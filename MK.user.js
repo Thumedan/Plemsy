@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Plemiona Bob Budowniczy - Menadżer Kukiego
 // @namespace    http://tampermonkey.net/
-// @version      1.6.0
-// @description  afk builder cały szablon 
-// @author       kradzione (poprawki Gemini)
+// @version      1.7.0
+// @description  full afk z szablonem pod eko
+// @author       kradzione 
 // @match        https://*.plemiona.pl/game.php?village=*&screen=main*
 // @license      MIT
 // @downloadURL  https://raw.githubusercontent.com/Thumedan/Plemsy/main/MK.user.js
@@ -13,12 +13,17 @@
 (function() {
     'use strict';
 
-    // Konfiguracja z oryginalnego skryptu
+    // Konfiguracja
     const CHECK_INTERVAL = 5 * 61 * 1000;
     const DEBUG = true;
     const STORAGE_KEY = 'tribalWarsBuilderConfig';
 
-    // Oryginalna funkcja getAvailableBuildings
+    // ====================================================================
+    // === WBUDOWANY SZABLON ROZBUDOWY ===
+    // ====================================================================
+    const BUILD_TEMPLATE = [{"building":"wood","targetLevel":1},{"building":"stone","targetLevel":1},{"building":"iron","targetLevel":1},{"building":"stone","targetLevel":2},{"building":"wood","targetLevel":2},{"building":"main","targetLevel":2},{"building":"storage","targetLevel":2},{"building":"iron","targetLevel":2},{"building":"main","targetLevel":3},{"building":"wood","targetLevel":3},{"building":"main","targetLevel":4},{"building":"storage","targetLevel":3},{"building":"iron","targetLevel":3},{"building":"stone","targetLevel":3},{"building":"iron","targetLevel":4},{"building":"wood","targetLevel":4},{"building":"stone","targetLevel":4},{"building":"wood","targetLevel":5},{"building":"wood","targetLevel":6},{"building":"stone","targetLevel":5},{"building":"iron","targetLevel":5},{"building":"wood","targetLevel":7},{"building":"stone","targetLevel":6},{"building":"stone","targetLevel":7},{"building":"wood","targetLevel":8},{"building":"stone","targetLevel":8},{"building":"wood","targetLevel":9},{"building":"stone","targetLevel":9},{"building":"stone","targetLevel":10},{"building":"farm","targetLevel":2},{"building":"barracks","targetLevel":1},{"building":"market","targetLevel":1},{"building":"wall","targetLevel":1},{"building":"wall","targetLevel":2},{"building":"stone","targetLevel":11},{"building":"farm","targetLevel":3},{"building":"wood","targetLevel":10},{"building":"iron","targetLevel":6},{"building":"wall","targetLevel":3},{"building":"iron","targetLevel":7},{"building":"storage","targetLevel":4},{"building":"farm","targetLevel":4},{"building":"farm","targetLevel":5},{"building":"iron","targetLevel":8},{"building":"storage","targetLevel":5},{"building":"wood","targetLevel":11},{"building":"wood","targetLevel":12},{"building":"stone","targetLevel":12},{"building":"iron","targetLevel":9},{"building":"wood","targetLevel":13},{"building":"stone","targetLevel":13},{"building":"wall","targetLevel":4},{"building":"iron","targetLevel":10},{"building":"market","targetLevel":2},{"building":"stone","targetLevel":14},{"building":"wood","targetLevel":14},{"building":"iron","targetLevel":11},{"building":"stone","targetLevel":15},{"building":"wood","targetLevel":15},{"building":"storage","targetLevel":6},{"building":"stone","targetLevel":16},{"building":"iron","targetLevel":12},{"building":"wood","targetLevel":16},{"building":"iron","targetLevel":13},{"building":"storage","targetLevel":7},{"building":"wood","targetLevel":17},{"building":"stone","targetLevel":17},{"building":"main","targetLevel":5},{"building":"storage","targetLevel":8},{"building":"stone","targetLevel":18},{"building":"iron","targetLevel":14},{"building":"market","targetLevel":3},{"building":"farm","targetLevel":6},{"building":"market","targetLevel":4},{"building":"main","targetLevel":6},{"building":"farm","targetLevel":7},{"building":"main","targetLevel":7},{"building":"wall","targetLevel":5},{"building":"market","targetLevel":5},{"building":"wood","targetLevel":18},{"building":"iron","targetLevel":15},{"building":"storage","targetLevel":9},{"building":"stone","targetLevel":19},{"building":"wood","targetLevel":19},{"building":"storage","targetLevel":10},{"building":"stone","targetLevel":20},{"building":"main","targetLevel":8},{"building":"wood","targetLevel":20},{"building":"iron","targetLevel":16},{"building":"storage","targetLevel":11},{"building":"iron","targetLevel":17},{"building":"stone","targetLevel":21},{"building":"main","targetLevel":9},{"building":"main","targetLevel":10},{"building":"wood","targetLevel":21},{"building":"storage","targetLevel":12},{"building":"farm","targetLevel":8},{"building":"farm","targetLevel":9},{"building":"storage","targetLevel":13},{"building":"stone","targetLevel":22},{"building":"wood","targetLevel":22},{"building":"iron","targetLevel":18},{"building":"storage","targetLevel":14},{"building":"stone","targetLevel":23},{"building":"wood","targetLevel":23},{"building":"storage","targetLevel":15},{"building":"stone","targetLevel":24},{"building":"iron","targetLevel":19},{"building":"wood","targetLevel":24},{"building":"storage","targetLevel":16},{"building":"stone","targetLevel":25},{"building":"iron","targetLevel":20},{"building":"wood","targetLevel":25},{"building":"main","targetLevel":11},{"building":"storage","targetLevel":17},{"building":"stone","targetLevel":26},{"building":"iron","targetLevel":21},{"building":"main","targetLevel":12},{"building":"wood","targetLevel":26},{"building":"storage","targetLevel":18},{"building":"stone","targetLevel":27},{"building":"main","targetLevel":13},{"building":"main","targetLevel":14},{"building":"wood","targetLevel":27},{"building":"storage","targetLevel":19},{"building":"storage","targetLevel":20},{"building":"stone","targetLevel":28},{"building":"iron","targetLevel":22},{"building":"main","targetLevel":15},{"building":"farm","targetLevel":10},{"building":"wood","targetLevel":28},{"building":"farm","targetLevel":11},{"building":"farm","targetLevel":12},{"building":"storage","targetLevel":21},{"building":"stone","targetLevel":29},{"building":"main","targetLevel":16},{"building":"iron","targetLevel":23},{"building":"iron","targetLevel":24},{"building":"main","targetLevel":17},{"building":"main","targetLevel":18},{"building":"farm","targetLevel":13},{"building":"storage","targetLevel":22},{"building":"storage","targetLevel":23},{"building":"stone","targetLevel":30},{"building":"main","targetLevel":19},{"building":"iron","targetLevel":25},{"building":"iron","targetLevel":26},{"building":"iron","targetLevel":27},{"building":"wood","targetLevel":29},{"building":"iron","targetLevel":28},{"building":"iron","targetLevel":29},{"building":"storage","targetLevel":24},{"building":"iron","targetLevel":30},{"building":"wood","targetLevel":30}];
+
+
     function getAvailableBuildings() {
         debugLog('Starting getAvailableBuildings function');
         const buildings = [];
@@ -42,40 +47,27 @@
         return buildings;
     }
 
-    // Oryginalne funkcje loadConfig i saveConfig
     function loadConfig() {
-        const defaultConfig = {
-            useCostReduction: true,
-            useLongBuildReduction: false,
-            longBuildThreshold: 2,
-            buildSequence: []
-        };
+        const defaultConfig = { useCostReduction: true, useLongBuildReduction: false, longBuildThreshold: 2, buildSequence: [] };
         try {
             const savedConfig = localStorage.getItem(STORAGE_KEY);
             return savedConfig ? JSON.parse(savedConfig) : defaultConfig;
-        } catch (error) {
-            debugLog('Error loading config:', error);
-            return defaultConfig;
-        }
+        } catch (error) { debugLog('Error loading config:', error); return defaultConfig; }
     }
 
     function saveConfig(config) {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
             debugLog('Config saved:', config);
-        } catch (error) {
-            debugLog('Error saving config:', error);
-        }
+        } catch (error) { debugLog('Error saving config:', error); }
     }
 
-    // Oryginalna, NIETKNIĘTA funkcja tworzenia interfejsu (UI)
     function createUI() {
         debugLog('Starting UI creation');
         const config = loadConfig();
         const buildings = getAvailableBuildings();
         const uiContainer = document.createElement('div');
         uiContainer.style.cssText = 'background: #f4e4bc; padding: 15px; margin: 10px 0; border: 1px solid #603000; font-size: 12px;';
-
         const titleSection = document.createElement('div');
         titleSection.style.marginBottom = '20px';
         const title = document.createElement('h3');
@@ -83,10 +75,8 @@
         title.style.cssText = 'margin: 0 0 5px 0; font-size: 14px; font-weight: bold;';
         titleSection.appendChild(title);
         uiContainer.appendChild(titleSection);
-
         const settingsSection = document.createElement('div');
         settingsSection.style.cssText = 'background: #fff3d9; padding: 10px; border: 1px solid #c1a264; margin-bottom: 15px;';
-
         const costReductionDiv = document.createElement('div');
         costReductionDiv.style.marginBottom = '10px';
         const costReductionCheckbox = document.createElement('input');
@@ -100,7 +90,6 @@
         costReductionDiv.appendChild(costReductionCheckbox);
         costReductionDiv.appendChild(costReductionLabel);
         settingsSection.appendChild(costReductionDiv);
-
         const longBuildDiv = document.createElement('div');
         longBuildDiv.style.marginBottom = '5px';
         const longBuildCheckbox = document.createElement('input');
@@ -125,33 +114,36 @@
         longBuildDiv.appendChild(hoursLabel);
         settingsSection.appendChild(longBuildDiv);
         uiContainer.appendChild(settingsSection);
-
         const sequenceSection = document.createElement('div');
         const sequenceHeader = document.createElement('div');
         sequenceHeader.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;';
         const sequenceTitle = document.createElement('div');
         sequenceTitle.textContent = 'Kolejka budowy';
         sequenceTitle.style.cssText = 'font-weight: bold;';
-        sequenceHeader.appendChild(sequenceTitle);
+
+        // --- Kontener na przyciski w nagłówku ---
+        const headerButtons = document.createElement('div');
+        headerButtons.style.display = 'flex';
+        headerButtons.style.gap = '10px';
+
+        const loadTemplateButton = document.createElement('button');
+        loadTemplateButton.textContent = 'Wczytaj szablon';
+        loadTemplateButton.className = 'btn';
+
         const clearButton = document.createElement('button');
         clearButton.textContent = 'Wyczyść wszystko';
         clearButton.className = 'btn btn-default';
-        clearButton.onclick = () => {
-            sequenceList.innerHTML = '';
-            const emptyText = document.createElement('div');
-            emptyText.textContent = 'Brak budynków w kolejce';
-            emptyText.style.cssText = 'color: #666; font-style: italic; text-align: center;';
-            sequenceList.appendChild(emptyText);
-            UI.SuccessMessage('Kolejka wyczyszczona');
-        };
-        sequenceHeader.appendChild(clearButton);
+
+        headerButtons.appendChild(loadTemplateButton);
+        headerButtons.appendChild(clearButton);
+        sequenceHeader.appendChild(sequenceTitle);
+        sequenceHeader.appendChild(headerButtons);
         sequenceSection.appendChild(sequenceHeader);
 
         const sequenceList = document.createElement('div');
         sequenceList.id = 'buildSequenceList';
         sequenceList.style.cssText = 'border: 1px solid #c1a264; padding: 10px; margin-bottom: 10px; min-height: 50px; background: #fff3d9;';
         sequenceSection.appendChild(sequenceList);
-
         const addControls = document.createElement('div');
         addControls.style.cssText = 'display: flex; gap: 10px; align-items: center; background: #fff3d9; padding: 10px; border: 1px solid #c1a264;';
         const buildingSelect = document.createElement('select');
@@ -181,7 +173,6 @@
         addControls.appendChild(addButton);
         sequenceSection.appendChild(addControls);
         uiContainer.appendChild(sequenceSection);
-
         const saveButton = document.createElement('button');
         saveButton.textContent = 'Zapisz Ustawienia';
         saveButton.className = 'btn';
@@ -232,6 +223,29 @@
             item.appendChild(buttonsDiv);
             sequenceList.appendChild(item);
         }
+
+        // --- Logika przycisków ---
+        loadTemplateButton.onclick = () => {
+            if (!confirm('Czy na pewno chcesz wczytać szablon? Spowoduje to nadpisanie Twojej obecnej kolejki.')) { return; }
+            sequenceList.innerHTML = '';
+            BUILD_TEMPLATE.forEach(item => { addSequenceItem(item.building, item.targetLevel); });
+            const currentConfig = loadConfig();
+            const newConfig = {
+                ...currentConfig, // Zachowaj stare ustawienia jak redukcja kosztów
+                buildSequence: BUILD_TEMPLATE
+            };
+            saveConfig(newConfig);
+            UI.SuccessMessage('Szablon startowy został wczytany i zapisany!');
+        };
+
+        clearButton.onclick = () => {
+            const emptyText = document.createElement('div');
+            emptyText.textContent = 'Brak budynków w kolejce';
+            emptyText.style.cssText = 'color: #666; font-style: italic; text-align: center;';
+            sequenceList.innerHTML = '';
+            sequenceList.appendChild(emptyText);
+            UI.SuccessMessage('Kolejka wyczyszczona');
+        };
 
         addButton.onclick = () => {
             const buildingId = buildingSelect.value;
@@ -314,10 +328,7 @@
                 }
             }
             return false;
-        } catch (error) {
-            debugLog('Error in reduceLongBuilds:', error);
-            return false;
-        }
+        } catch (error) { debugLog('Error in reduceLongBuilds:', error); return false; }
     }
 
     function getBuildingLevel(buildingName) {
@@ -328,17 +339,12 @@
             if (!levelSpan) return null;
             const levelMatch = levelSpan.textContent.match(/\d+/);
             return levelMatch ? parseInt(levelMatch[0]) : 0;
-        } catch (error) {
-            debugLog(`Error getting level for ${buildingName}:`, error);
-            return null;
-        }
+        } catch (error) { debugLog(`Error getting level for ${buildingName}:`, error); return null; }
     }
 
     function canBuildResource(buildingName) {
         const config = loadConfig();
-        const buttonSelector = config.useCostReduction ?
-            `#main_buildlink_${buildingName}_cheap` :
-            `a.btn-build[href*="action=upgrade"][href*="id=${buildingName}"]:not([href*="cheap"])`;
+        const buttonSelector = config.useCostReduction ? `#main_buildlink_${buildingName}_cheap` : `a.btn-build[href*="action=upgrade"][href*="id=${buildingName}"]:not([href*="cheap"])`;
         try {
             const row = document.querySelector(`#main_buildrow_${buildingName}`);
             if (!row) return false;
@@ -347,10 +353,7 @@
             const isDisabled = buildButton.classList.contains('btn-disabled') || buildButton.classList.contains('btn-bcr-disabled');
             const hasValidHref = buildButton.getAttribute('href') && buildButton.getAttribute('href') !== '#';
             return hasValidHref && !isDisabled;
-        } catch (error) {
-            debugLog(`Error checking if ${buildingName} can be built:`, error);
-            return false;
-        }
+        } catch (error) { debugLog(`Error checking if ${buildingName} can be built:`, error); return false; }
     }
 
     function isConstructionInProgress() {
@@ -360,9 +363,7 @@
 
     function buildResource(buildingName) {
         const config = loadConfig();
-        const buttonSelector = config.useCostReduction ?
-            `#main_buildlink_${buildingName}_cheap` :
-            `a.btn-build[href*="action=upgrade"][href*="id=${buildingName}"]:not([href*="cheap"])`;
+        const buttonSelector = config.useCostReduction ? `#main_buildlink_${buildingName}_cheap` : `a.btn-build[href*="action=upgrade"][href*="id=${buildingName}"]:not([href*="cheap"])`;
         try {
             const row = document.querySelector(`#main_buildrow_${buildingName}`);
             const buildButton = row.querySelector(buttonSelector);
@@ -372,63 +373,46 @@
                 return true;
             }
             return false;
-        } catch (error) {
-            debugLog(`Error building ${buildingName}:`, error);
-            return false;
-        }
+        } catch (error) { debugLog(`Error building ${buildingName}:`, error); return false; }
     }
 
-    // ====================================================================
-    // === POPRAWIONA, INTELIGENTNA FUNKCJA checkAndBuild ===
-    // ====================================================================
     function checkAndBuild() {
         debugLog('Starting building check cycle...');
         reduceLongBuilds();
-
         if (isConstructionInProgress()) {
             debugLog('Construction already in progress, skipping build check');
             return;
         }
-
         const config = loadConfig();
         if (!config.buildSequence || config.buildSequence.length === 0) {
             debugLog('No building sequence configured, stopping.');
             return;
         }
 
-        // --- Nowa, inteligentna pętla do "przewijania" ukończonych zadań ---
         let itemsSkipped = false;
         while (config.buildSequence.length > 0) {
             const task = config.buildSequence[0];
             const currentLvl = getBuildingLevel(task.building);
-
             if (currentLvl === null) {
                 debugLog(`Cannot determine level for ${task.building}, cannot proceed with this task.`);
-                break; 
+                break;
             }
-
             if (currentLvl >= task.targetLevel) {
                 debugLog(`Skipping completed task: ${task.building} to level ${task.targetLevel}. (Current level: ${currentLvl})`);
-                config.buildSequence.shift(); // Usuń ukończone zadanie z początku listy
+                config.buildSequence.shift();
                 itemsSkipped = true;
             } else {
-                // Znaleziono pierwsze zadanie, które nie jest ukończone. Przerwij pętlę.
                 break;
             }
         }
 
-        // Jeśli pominięto jakiekolwiek zadania, zapisz nową (krótszą) kolejkę i odśwież stronę, aby zaktualizować UI
         if (itemsSkipped) {
             debugLog('Skipped one or more completed tasks. Saving new queue and reloading to reflect changes.');
             saveConfig(config);
             setTimeout(() => window.location.reload(), 1500);
-            return; // Zatrzymaj dalsze wykonywanie w tym cyklu, poczekaj na odświeżenie
+            return;
         }
-        // --- Koniec nowej logiki ---
 
-
-        // Jeśli doszliśmy tutaj, oznacza to, że pierwsze zadanie w kolejce jest tym właściwym do zbudowania.
-        // Sprawdzamy, czy kolejka nie jest teraz pusta.
         if (config.buildSequence.length === 0) {
             debugLog('Building sequence is now empty after skipping tasks.');
             return;
@@ -436,7 +420,6 @@
         
         const currentTask = config.buildSequence[0];
         debugLog('Next task to build:', { building: currentTask.building, targetLevel: currentTask.targetLevel });
-
         if (canBuildResource(currentTask.building)) {
             debugLog(`Building ${currentTask.building} is available for construction.`);
             buildResource(currentTask.building);
@@ -445,8 +428,6 @@
         }
     }
 
-
-    // Główna logika uruchomieniowa
     try {
         createUI();
         debugLog('Script initialized, performing initial check...');
