@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Plemiona Bob Budowniczy - Menadżer Kukiego
 // @namespace    http://tampermonkey.net/
-// @version      1.5.0
-// @description  już możecie spać x)
+// @version      1.6.0
+// @description  afk builder cały szablon 
 // @author       kradzione (poprawki Gemini)
 // @match        https://*.plemiona.pl/game.php?village=*&screen=main*
 // @license      MIT
@@ -177,7 +177,7 @@
         addButton.textContent = 'Dodaj do kolejki';
         addButton.className = 'btn';
         addControls.appendChild(buildingSelect);
-addControls.appendChild(untilLevelInput);
+        addControls.appendChild(untilLevelInput);
         addControls.appendChild(addButton);
         sequenceSection.appendChild(addControls);
         uiContainer.appendChild(sequenceSection);
@@ -253,7 +253,6 @@ addControls.appendChild(untilLevelInput);
                 building: item.dataset.buildingId,
                 targetLevel: parseInt(item.dataset.targetLevel)
             }));
-            // Przywrócono zapisywanie wszystkich opcji
             const newConfig = {
                 useCostReduction: costReductionCheckbox.checked,
                 useLongBuildReduction: longBuildCheckbox.checked,
@@ -289,8 +288,7 @@ addControls.appendChild(untilLevelInput);
         if (data) { console.log(`[${timestamp}] ${message}`, data); }
         else { console.log(`[${timestamp}] ${message}`); }
     }
-    
-    // Oryginalna funkcja reduceLongBuilds, która była potrzebna
+
     function reduceLongBuilds() {
         try {
             const config = loadConfig();
@@ -322,11 +320,6 @@ addControls.appendChild(untilLevelInput);
         }
     }
 
-
-    // ====================================================================
-    // === TUTAJ ZACZYNAJĄ SIĘ POPRAWIONE FUNKCJE Z LOGIKĄ BUDOWANIA ===
-    // ====================================================================
-
     function getBuildingLevel(buildingName) {
         try {
             const row = document.querySelector(`#main_buildrow_${buildingName}`);
@@ -334,7 +327,7 @@ addControls.appendChild(untilLevelInput);
             const levelSpan = row.querySelector('span[style*="font-size"]');
             if (!levelSpan) return null;
             const levelMatch = levelSpan.textContent.match(/\d+/);
-            return levelMatch ? parseInt(levelMatch[0]) : 0; // Zwróć 0 jeśli nie znajdzie
+            return levelMatch ? parseInt(levelMatch[0]) : 0;
         } catch (error) {
             debugLog(`Error getting level for ${buildingName}:`, error);
             return null;
@@ -385,42 +378,73 @@ addControls.appendChild(untilLevelInput);
         }
     }
 
+    // ====================================================================
+    // === POPRAWIONA, INTELIGENTNA FUNKCJA checkAndBuild ===
+    // ====================================================================
     function checkAndBuild() {
         debugLog('Starting building check cycle...');
-        reduceLongBuilds(); // Wywołanie funkcji sprawdzającej długie budowy
+        reduceLongBuilds();
 
         if (isConstructionInProgress()) {
             debugLog('Construction already in progress, skipping build check');
             return;
         }
+
         const config = loadConfig();
         if (!config.buildSequence || config.buildSequence.length === 0) {
             debugLog('No building sequence configured, stopping.');
             return;
         }
-        const currentTask = config.buildSequence[0];
-        const buildingId = currentTask.building;
-        const targetLevel = currentTask.targetLevel;
-        const currentLevel = getBuildingLevel(buildingId);
-        if (currentLevel === null) {
-            debugLog(`Could not determine current level for ${buildingId}. Skipping.`);
-            return;
+
+        // --- Nowa, inteligentna pętla do "przewijania" ukończonych zadań ---
+        let itemsSkipped = false;
+        while (config.buildSequence.length > 0) {
+            const task = config.buildSequence[0];
+            const currentLvl = getBuildingLevel(task.building);
+
+            if (currentLvl === null) {
+                debugLog(`Cannot determine level for ${task.building}, cannot proceed with this task.`);
+                break; 
+            }
+
+            if (currentLvl >= task.targetLevel) {
+                debugLog(`Skipping completed task: ${task.building} to level ${task.targetLevel}. (Current level: ${currentLvl})`);
+                config.buildSequence.shift(); // Usuń ukończone zadanie z początku listy
+                itemsSkipped = true;
+            } else {
+                // Znaleziono pierwsze zadanie, które nie jest ukończone. Przerwij pętlę.
+                break;
+            }
         }
-        debugLog('Checking sequence item:', { building: buildingId, currentLevel, targetLevel });
-        if (currentLevel >= targetLevel) {
-            debugLog(`Target level for ${buildingId} reached. Removing from sequence.`);
-            config.buildSequence.shift();
+
+        // Jeśli pominięto jakiekolwiek zadania, zapisz nową (krótszą) kolejkę i odśwież stronę, aby zaktualizować UI
+        if (itemsSkipped) {
+            debugLog('Skipped one or more completed tasks. Saving new queue and reloading to reflect changes.');
             saveConfig(config);
             setTimeout(() => window.location.reload(), 1500);
+            return; // Zatrzymaj dalsze wykonywanie w tym cyklu, poczekaj na odświeżenie
+        }
+        // --- Koniec nowej logiki ---
+
+
+        // Jeśli doszliśmy tutaj, oznacza to, że pierwsze zadanie w kolejce jest tym właściwym do zbudowania.
+        // Sprawdzamy, czy kolejka nie jest teraz pusta.
+        if (config.buildSequence.length === 0) {
+            debugLog('Building sequence is now empty after skipping tasks.');
             return;
         }
-        if (canBuildResource(buildingId)) {
-            debugLog(`Building ${buildingId} is available for construction.`);
-            buildResource(buildingId);
+        
+        const currentTask = config.buildSequence[0];
+        debugLog('Next task to build:', { building: currentTask.building, targetLevel: currentTask.targetLevel });
+
+        if (canBuildResource(currentTask.building)) {
+            debugLog(`Building ${currentTask.building} is available for construction.`);
+            buildResource(currentTask.building);
         } else {
-            debugLog(`Cannot build ${buildingId} yet (not enough resources or other condition).`);
+            debugLog(`Cannot build ${currentTask.building} yet (not enough resources or other condition).`);
         }
     }
+
 
     // Główna logika uruchomieniowa
     try {
