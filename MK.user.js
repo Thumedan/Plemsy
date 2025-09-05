@@ -1,14 +1,15 @@
 // ==UserScript==
 // @name         Plemiona Bob Budowniczy - Menadżer Kukiego
 // @namespace    http://tampermonkey.net/
-// @version      1.7.0
-// @description  full afk z szablonem pod eko
+// @version      1.9.0
+// @description  full afk z szablonem pod eko + export i import
 // @author       kradzione 
 // @match        https://*.plemiona.pl/game.php?village=*&screen=main*
 // @license      MIT
 // @downloadURL  https://raw.githubusercontent.com/Thumedan/Plemsy/main/MK.user.js
 // @updateURL    https://raw.githubusercontent.com/Thumedan/Plemsy/main/MK.user.js
 // ==/UserScript==
+
 
 (function() {
     'use strict';
@@ -23,7 +24,6 @@
 
     // Główne funkcje skryptu
     function getAvailableBuildings() {
-        debugLog('Starting getAvailableBuildings function');
         const buildings = [];
         const buildingRows = document.querySelectorAll('#buildings tbody tr[id^="main_buildrow_"]');
         buildingRows.forEach((row) => {
@@ -41,27 +41,21 @@
             const buildingName = nameLink.textContent.trim();
             buildings.push({ id: buildingId, name: buildingName, currentLevel: currentLevel });
         });
-        debugLog('Completed getAvailableBuildings. Found buildings:', buildings);
         return buildings;
     }
 
     function loadConfig() {
         const defaultConfig = { useCostReduction: true, useLongBuildReduction: false, longBuildThreshold: 2, buildSequence: [] };
-        try {
-            const savedConfig = localStorage.getItem(STORAGE_KEY);
-            return savedConfig ? JSON.parse(savedConfig) : defaultConfig;
-        } catch (error) { debugLog('Error loading config:', error); return defaultConfig; }
+        try { const savedConfig = localStorage.getItem(STORAGE_KEY); return savedConfig ? JSON.parse(savedConfig) : defaultConfig; }
+        catch (error) { debugLog('Error loading config:', error); return defaultConfig; }
     }
 
     function saveConfig(config) {
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-            debugLog('Config saved:', config);
-        } catch (error) { debugLog('Error saving config:', error); }
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(config)); debugLog('Config saved:', config); }
+        catch (error) { debugLog('Error saving config:', error); }
     }
 
     function createUI() {
-        debugLog('Starting UI creation');
         const config = loadConfig();
         const buildings = getAvailableBuildings();
         const uiContainer = document.createElement('div');
@@ -121,17 +115,29 @@
         const headerButtons = document.createElement('div');
         headerButtons.style.display = 'flex';
         headerButtons.style.gap = '10px';
+
+        // --- Nowe przyciski Import/Export ---
+        const importButton = document.createElement('button');
+        importButton.textContent = 'Importuj';
+        importButton.className = 'btn';
+        const exportButton = document.createElement('button');
+        exportButton.textContent = 'Eksportuj';
+        exportButton.className = 'btn';
         const loadTemplateButton = document.createElement('button');
         loadTemplateButton.textContent = 'Wczytaj szablon';
         loadTemplateButton.className = 'btn';
         const clearButton = document.createElement('button');
-        clearButton.textContent = 'Wyczyść wszystko';
+        clearButton.textContent = 'Wyczyść';
         clearButton.className = 'btn btn-default';
+
+        headerButtons.appendChild(importButton);
+        headerButtons.appendChild(exportButton);
         headerButtons.appendChild(loadTemplateButton);
         headerButtons.appendChild(clearButton);
         sequenceHeader.appendChild(sequenceTitle);
         sequenceHeader.appendChild(headerButtons);
         sequenceSection.appendChild(sequenceHeader);
+
         const sequenceList = document.createElement('div');
         sequenceList.id = 'buildSequenceList';
         sequenceList.style.cssText = 'border: 1px solid #c1a264; padding: 10px; margin-bottom: 10px; min-height: 50px; background: #fff3d9;';
@@ -216,8 +222,46 @@
             sequenceList.appendChild(item);
         }
 
+        // --- Nowa logika przycisków Import/Export ---
+        exportButton.onclick = () => {
+            const sequence = Array.from(sequenceList.querySelectorAll('.sequence-item')).map(item => ({
+                building: item.dataset.buildingId,
+                targetLevel: parseInt(item.dataset.targetLevel)
+            }));
+            if (sequence.length === 0) { UI.ErrorMessage('Kolejka jest pusta. Nie ma czego eksportować.'); return; }
+            const exportString = btoa(JSON.stringify(sequence)); // Kodowanie do Base64
+            const dialogContent = `<h3>Szablon gotowy do skopiowania</h3><p>Skopiuj cały poniższy kod i wyślij go innej osobie.</p><textarea readonly style="width: 95%; height: 150px; font-size: 11px; word-break: break-all;">${exportString}</textarea>`;
+            Dialog.show('export_dialog', dialogContent);
+        };
+
+        importButton.onclick = () => {
+            const content = `<h3>Importuj szablon</h3><p>Wklej tutaj kod szablonu otrzymany od innej osoby.</p><textarea id="import_textarea" style="width: 95%; height: 150px;"></textarea><br><br><button id="confirm_import" class="btn">Importuj</button>`;
+            Dialog.show('import_dialog', content);
+
+            document.getElementById('confirm_import').onclick = () => {
+                const importString = document.getElementById('import_textarea').value.trim();
+                if (!importString) { UI.ErrorMessage('Pole jest puste.'); return; }
+                try {
+                    const decoded = atob(importString); // Dekodowanie z Base64
+                    const sequence = JSON.parse(decoded);
+                    if (!Array.isArray(sequence) || (sequence.length > 0 && (!sequence[0].building || !sequence[0].targetLevel))) {
+                        throw new Error('Invalid format');
+                    }
+                    if (!confirm(`Znaleziono ${sequence.length} poleceń budowy. Czy chcesz nadpisać swoją obecną kolejkę?`)) return;
+                    sequenceList.innerHTML = '';
+                    sequence.forEach(item => addSequenceItem(item.building, item.targetLevel));
+                    saveButton.click(); // Symuluje kliknięcie zapisu
+                    Dialog.close();
+                    UI.SuccessMessage('Szablon został pomyślnie zaimportowany i zapisany!');
+                } catch (e) {
+                    UI.ErrorMessage('Nieprawidłowy kod szablonu! Sprawdź, czy skopiowałeś go w całości.');
+                }
+            };
+        };
+
+
         loadTemplateButton.onclick = () => {
-            if (!confirm('Czy na pewno chcesz wczytać szablon? Spowoduje to nadpisanie Twojej obecnej kolejki.')) { return; }
+            if (!confirm('Czy na pewno chcesz wczytać szablon? Spowoduje to nadpisanie Twojej obecnej kolejki.')) return;
             sequenceList.innerHTML = '';
             BUILD_TEMPLATE.forEach(item => { addSequenceItem(item.building, item.targetLevel); });
             const currentConfig = loadConfig();
@@ -276,7 +320,6 @@
             buildingsTable.parentElement.insertBefore(uiContainer, buildingsTable);
         }
         initializeSequenceList();
-        debugLog('UI creation completed');
     }
 
     function debugLog(message, data = null) {
@@ -374,10 +417,7 @@
         while (config.buildSequence.length > 0) {
             const task = config.buildSequence[0];
             const currentLvl = getBuildingLevel(task.building);
-            if (currentLvl === null) {
-                debugLog(`Cannot determine level for ${task.building}, cannot proceed with this task.`);
-                break;
-            }
+            if (currentLvl === null) { break; }
             if (currentLvl >= task.targetLevel) {
                 debugLog(`Skipping completed task: ${task.building} to level ${task.targetLevel}. (Current level: ${currentLvl})`);
                 config.buildSequence.shift();
@@ -406,13 +446,10 @@
         }
     }
 
-    // ====================================================================
-    // === NOWA, GŁÓWNA LOGIKA URUCHOMIENIOWA Z OCZEKIWANIEM ===
-    // ====================================================================
     function initializeScript() {
         try {
             createUI();
-            debugLog('Script initialized, performing initial check...');
+            debugLog('Script UI created. Performing initial check...');
             checkAndBuild();
             setInterval(() => {
                 debugLog('Triggering page reload for next check');
@@ -425,12 +462,10 @@
         }
     }
 
-    // Czekaj, aż tabela budynków będzie dostępna, zanim uruchomisz skrypt
-    const checkInterval = setInterval(() => {
-        const buildingsTable = document.getElementById('buildings');
-        if (buildingsTable) {
-            clearInterval(checkInterval);
+    const checkPageReady = setInterval(() => {
+        if (document.getElementById('buildings')) {
+            clearInterval(checkPageReady);
             initializeScript();
         }
-    }, 250); // Sprawdzaj co 250ms
+    }, 250);
 })();
