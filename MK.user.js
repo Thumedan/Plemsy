@@ -18,12 +18,10 @@
     const DEBUG = true;
     const STORAGE_KEY = 'tribalWarsBuilderConfig';
 
-    // ====================================================================
-    // === WBUDOWANY SZABLON ROZBUDOWY ===
-    // ====================================================================
+    // Wbudowany szablon rozbudowy
     const BUILD_TEMPLATE = [{"building":"wood","targetLevel":1},{"building":"stone","targetLevel":1},{"building":"iron","targetLevel":1},{"building":"stone","targetLevel":2},{"building":"wood","targetLevel":2},{"building":"main","targetLevel":2},{"building":"storage","targetLevel":2},{"building":"iron","targetLevel":2},{"building":"main","targetLevel":3},{"building":"wood","targetLevel":3},{"building":"main","targetLevel":4},{"building":"storage","targetLevel":3},{"building":"iron","targetLevel":3},{"building":"stone","targetLevel":3},{"building":"iron","targetLevel":4},{"building":"wood","targetLevel":4},{"building":"stone","targetLevel":4},{"building":"wood","targetLevel":5},{"building":"wood","targetLevel":6},{"building":"stone","targetLevel":5},{"building":"iron","targetLevel":5},{"building":"wood","targetLevel":7},{"building":"stone","targetLevel":6},{"building":"stone","targetLevel":7},{"building":"wood","targetLevel":8},{"building":"stone","targetLevel":8},{"building":"wood","targetLevel":9},{"building":"stone","targetLevel":9},{"building":"stone","targetLevel":10},{"building":"farm","targetLevel":2},{"building":"barracks","targetLevel":1},{"building":"market","targetLevel":1},{"building":"wall","targetLevel":1},{"building":"wall","targetLevel":2},{"building":"stone","targetLevel":11},{"building":"farm","targetLevel":3},{"building":"wood","targetLevel":10},{"building":"iron","targetLevel":6},{"building":"wall","targetLevel":3},{"building":"iron","targetLevel":7},{"building":"storage","targetLevel":4},{"building":"farm","targetLevel":4},{"building":"farm","targetLevel":5},{"building":"iron","targetLevel":8},{"building":"storage","targetLevel":5},{"building":"wood","targetLevel":11},{"building":"wood","targetLevel":12},{"building":"stone","targetLevel":12},{"building":"iron","targetLevel":9},{"building":"wood","targetLevel":13},{"building":"stone","targetLevel":13},{"building":"wall","targetLevel":4},{"building":"iron","targetLevel":10},{"building":"market","targetLevel":2},{"building":"stone","targetLevel":14},{"building":"wood","targetLevel":14},{"building":"iron","targetLevel":11},{"building":"stone","targetLevel":15},{"building":"wood","targetLevel":15},{"building":"storage","targetLevel":6},{"building":"stone","targetLevel":16},{"building":"iron","targetLevel":12},{"building":"wood","targetLevel":16},{"building":"iron","targetLevel":13},{"building":"storage","targetLevel":7},{"building":"wood","targetLevel":17},{"building":"stone","targetLevel":17},{"building":"main","targetLevel":5},{"building":"storage","targetLevel":8},{"building":"stone","targetLevel":18},{"building":"iron","targetLevel":14},{"building":"market","targetLevel":3},{"building":"farm","targetLevel":6},{"building":"market","targetLevel":4},{"building":"main","targetLevel":6},{"building":"farm","targetLevel":7},{"building":"main","targetLevel":7},{"building":"wall","targetLevel":5},{"building":"market","targetLevel":5},{"building":"wood","targetLevel":18},{"building":"iron","targetLevel":15},{"building":"storage","targetLevel":9},{"building":"stone","targetLevel":19},{"building":"wood","targetLevel":19},{"building":"storage","targetLevel":10},{"building":"stone","targetLevel":20},{"building":"main","targetLevel":8},{"building":"wood","targetLevel":20},{"building":"iron","targetLevel":16},{"building":"storage","targetLevel":11},{"building":"iron","targetLevel":17},{"building":"stone","targetLevel":21},{"building":"main","targetLevel":9},{"building":"main","targetLevel":10},{"building":"wood","targetLevel":21},{"building":"storage","targetLevel":12},{"building":"farm","targetLevel":8},{"building":"farm","targetLevel":9},{"building":"storage","targetLevel":13},{"building":"stone","targetLevel":22},{"building":"wood","targetLevel":22},{"building":"iron","targetLevel":18},{"building":"storage","targetLevel":14},{"building":"stone","targetLevel":23},{"building":"wood","targetLevel":23},{"building":"storage","targetLevel":15},{"building":"stone","targetLevel":24},{"building":"iron","targetLevel":19},{"building":"wood","targetLevel":24},{"building":"storage","targetLevel":16},{"building":"stone","targetLevel":25},{"building":"iron","targetLevel":20},{"building":"wood","targetLevel":25},{"building":"main","targetLevel":11},{"building":"storage","targetLevel":17},{"building":"stone","targetLevel":26},{"building":"iron","targetLevel":21},{"building":"main","targetLevel":12},{"building":"wood","targetLevel":26},{"building":"storage","targetLevel":18},{"building":"stone","targetLevel":27},{"building":"main","targetLevel":13},{"building":"main","targetLevel":14},{"building":"wood","targetLevel":27},{"building":"storage","targetLevel":19},{"building":"storage","targetLevel":20},{"building":"stone","targetLevel":28},{"building":"iron","targetLevel":22},{"building":"main","targetLevel":15},{"building":"farm","targetLevel":10},{"building":"wood","targetLevel":28},{"building":"farm","targetLevel":11},{"building":"farm","targetLevel":12},{"building":"storage","targetLevel":21},{"building":"stone","targetLevel":29},{"building":"main","targetLevel":16},{"building":"iron","targetLevel":23},{"building":"iron","targetLevel":24},{"building":"main","targetLevel":17},{"building":"main","targetLevel":18},{"building":"farm","targetLevel":13},{"building":"storage","targetLevel":22},{"building":"storage","targetLevel":23},{"building":"stone","targetLevel":30},{"building":"main","targetLevel":19},{"building":"iron","targetLevel":25},{"building":"iron","targetLevel":26},{"building":"iron","targetLevel":27},{"building":"wood","targetLevel":29},{"building":"iron","targetLevel":28},{"building":"iron","targetLevel":29},{"building":"storage","targetLevel":24},{"building":"iron","targetLevel":30},{"building":"wood","targetLevel":30}];
 
-
+    // Główne funkcje skryptu
     function getAvailableBuildings() {
         debugLog('Starting getAvailableBuildings function');
         const buildings = [];
@@ -120,26 +118,20 @@
         const sequenceTitle = document.createElement('div');
         sequenceTitle.textContent = 'Kolejka budowy';
         sequenceTitle.style.cssText = 'font-weight: bold;';
-
-        // --- Kontener na przyciski w nagłówku ---
         const headerButtons = document.createElement('div');
         headerButtons.style.display = 'flex';
         headerButtons.style.gap = '10px';
-
         const loadTemplateButton = document.createElement('button');
         loadTemplateButton.textContent = 'Wczytaj szablon';
         loadTemplateButton.className = 'btn';
-
         const clearButton = document.createElement('button');
         clearButton.textContent = 'Wyczyść wszystko';
         clearButton.className = 'btn btn-default';
-
         headerButtons.appendChild(loadTemplateButton);
         headerButtons.appendChild(clearButton);
         sequenceHeader.appendChild(sequenceTitle);
         sequenceHeader.appendChild(headerButtons);
         sequenceSection.appendChild(sequenceHeader);
-
         const sequenceList = document.createElement('div');
         sequenceList.id = 'buildSequenceList';
         sequenceList.style.cssText = 'border: 1px solid #c1a264; padding: 10px; margin-bottom: 10px; min-height: 50px; background: #fff3d9;';
@@ -224,20 +216,15 @@
             sequenceList.appendChild(item);
         }
 
-        // --- Logika przycisków ---
         loadTemplateButton.onclick = () => {
             if (!confirm('Czy na pewno chcesz wczytać szablon? Spowoduje to nadpisanie Twojej obecnej kolejki.')) { return; }
             sequenceList.innerHTML = '';
             BUILD_TEMPLATE.forEach(item => { addSequenceItem(item.building, item.targetLevel); });
             const currentConfig = loadConfig();
-            const newConfig = {
-                ...currentConfig, // Zachowaj stare ustawienia jak redukcja kosztów
-                buildSequence: BUILD_TEMPLATE
-            };
+            const newConfig = { ...currentConfig, buildSequence: BUILD_TEMPLATE };
             saveConfig(newConfig);
             UI.SuccessMessage('Szablon startowy został wczytany i zapisany!');
         };
-
         clearButton.onclick = () => {
             const emptyText = document.createElement('div');
             emptyText.textContent = 'Brak budynków w kolejce';
@@ -246,7 +233,6 @@
             sequenceList.appendChild(emptyText);
             UI.SuccessMessage('Kolejka wyczyszczona');
         };
-
         addButton.onclick = () => {
             const buildingId = buildingSelect.value;
             if (!buildingId) { UI.ErrorMessage('Wybierz budynek'); return; }
@@ -261,7 +247,6 @@
             untilLevelInput.value = '';
             buildingSelect.value = '';
         };
-
         saveButton.onclick = () => {
             const sequence = Array.from(sequenceList.querySelectorAll('.sequence-item')).map(item => ({
                 building: item.dataset.buildingId,
@@ -276,7 +261,6 @@
             saveConfig(newConfig);
             UI.SuccessMessage(`Ustawienia zapisane! Kolejka zawiera ${sequence.length} budynków.`);
         };
-
         function initializeSequenceList() {
             if (!config.buildSequence || config.buildSequence.length === 0) {
                 const emptyText = document.createElement('div');
@@ -287,7 +271,6 @@
                 config.buildSequence.forEach(item => addSequenceItem(item.building, item.targetLevel));
             }
         }
-
         const buildingsTable = document.getElementById('buildings');
         if (buildingsTable && buildingsTable.parentElement) {
             buildingsTable.parentElement.insertBefore(uiContainer, buildingsTable);
@@ -299,8 +282,7 @@
     function debugLog(message, data = null) {
         if (!DEBUG) return;
         const timestamp = new Date().toLocaleTimeString();
-        if (data) { console.log(`[${timestamp}] ${message}`, data); }
-        else { console.log(`[${timestamp}] ${message}`); }
+        if (data) { console.log(`[${timestamp}] ${message}`, data); } else { console.log(`[${timestamp}] ${message}`); }
     }
 
     function reduceLongBuilds() {
@@ -388,7 +370,6 @@
             debugLog('No building sequence configured, stopping.');
             return;
         }
-
         let itemsSkipped = false;
         while (config.buildSequence.length > 0) {
             const task = config.buildSequence[0];
@@ -405,19 +386,16 @@
                 break;
             }
         }
-
         if (itemsSkipped) {
             debugLog('Skipped one or more completed tasks. Saving new queue and reloading to reflect changes.');
             saveConfig(config);
             setTimeout(() => window.location.reload(), 1500);
             return;
         }
-
         if (config.buildSequence.length === 0) {
             debugLog('Building sequence is now empty after skipping tasks.');
             return;
         }
-        
         const currentTask = config.buildSequence[0];
         debugLog('Next task to build:', { building: currentTask.building, targetLevel: currentTask.targetLevel });
         if (canBuildResource(currentTask.building)) {
@@ -428,17 +406,31 @@
         }
     }
 
-    try {
-        createUI();
-        debugLog('Script initialized, performing initial check...');
-        checkAndBuild();
-        setInterval(() => {
-            debugLog('Triggering page reload for next check');
-            window.location.reload();
-        }, CHECK_INTERVAL);
-        debugLog('Script setup completed successfully.');
-    } catch (error) {
-        console.error('[BUILDER SCRIPT] A critical error occurred:', error);
-        alert('Builder Script encountered a critical error. Check the console (F12).');
+    // ====================================================================
+    // === NOWA, GŁÓWNA LOGIKA URUCHOMIENIOWA Z OCZEKIWANIEM ===
+    // ====================================================================
+    function initializeScript() {
+        try {
+            createUI();
+            debugLog('Script initialized, performing initial check...');
+            checkAndBuild();
+            setInterval(() => {
+                debugLog('Triggering page reload for next check');
+                window.location.reload();
+            }, CHECK_INTERVAL);
+            debugLog('Script setup completed successfully.');
+        } catch (error) {
+            console.error('[BUILDER SCRIPT] A critical error occurred:', error);
+            alert('Builder Script encountered a critical error. Check the console (F12).');
+        }
     }
+
+    // Czekaj, aż tabela budynków będzie dostępna, zanim uruchomisz skrypt
+    const checkInterval = setInterval(() => {
+        const buildingsTable = document.getElementById('buildings');
+        if (buildingsTable) {
+            clearInterval(checkInterval);
+            initializeScript();
+        }
+    }, 250); // Sprawdzaj co 250ms
 })();
