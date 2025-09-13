@@ -1,11 +1,10 @@
 // ==UserScript==
 // @name         Plemiona Trener Personalny - Szkółka Kukiego
 // @namespace    http://tampermonkey.net/
-// @version      1.1
-// @description  MK TRENER - Wersja z poprawioną logiką pętli i blokady czasowej.
+// @version      1.2
+// @description  MK TRENER - Wersja finalna ze stabilną architekturą, która eliminuje problem podwójnej rekrutacji.
 // @author       KUKI (z poprawkami)
-// @match        https://*.plemiona.pl/game.php?screen=train&mode=train&village=*
-// @match        https://*.plemiona.pl/game.php?village=*&screen=train
+// @match        https://*.plemiona.pl/game.php?*screen=train*
 // @grant        none
 // @license      MIT
 // @downloadURL  https://raw.githubusercontent.com/Thumedan/Plemsy/main/REK.user.js
@@ -14,6 +13,13 @@
 
 (function() {
     'use strict';
+
+    // ### OSTATECZNE ROZWIĄZANIE: GLOBALNA FLAGA "BOUNCER" ###
+    // Jeśli skrypt już się zainicjował na tej stronie, natychmiast zatrzymaj każdą kolejną instancję.
+    if (window.trainerScriptInitialized) {
+        return;
+    }
+    window.trainerScriptInitialized = true;
 
     // --- GŁÓWNA KONFIGURACJA ---
     const MIN_INTERVAL_MINUTES = 15;
@@ -29,7 +35,6 @@
     let RECRUIT_TIMESTAMP_KEY = null;
     let timerId = null;
     let isChecking = false;
-    let listenersAttached = false;
 
     const log = (message) => { if (DEBUG) console.log(`[Trener Personalny ${new Date().toLocaleTimeString()}] ${message}`); };
     const loadConfig = () => { const defaultConfig = { targets: {}, isPaused: true }; try { const saved = localStorage.getItem(STORAGE_KEY); return saved ? { ...defaultConfig, ...JSON.parse(saved) } : defaultConfig; } catch (e) { return defaultConfig; } };
@@ -37,7 +42,6 @@
 
     // --- TWORZENIE INTERFEJSU UŻYTKOWNIKA (GUI) ---
     function createGUI() {
-        if (document.getElementById('autoRecruiterPanel')) return;
         const table = document.querySelector('#train_form .vis');
         if (!table) return;
         const headerRow = table.querySelector('tr');
@@ -48,12 +52,10 @@
         const container = document.createElement('div'); container.id = 'autoRecruiterPanel'; container.style.cssText = 'background: #f4e4bc; padding: 10px; margin-top: 10px; border: 1px solid #603000;';
         container.innerHTML = ` <button id="saveTargetsBtn" class="btn">Zapisz Cele</button> <button id="togglePauseBtn" class="btn" style="margin-left: 10px;"></button> <div id="recruiterStatus" style="margin-top: 8px; font-weight: bold;"></div> <div id="populationCount" style="margin-top: 5px; color: #603000;"></div>`;
         table.parentElement.appendChild(container);
-        listenersAttached = false;
     }
 
     // --- DOŁĄCZANIE ZDARZEŃ DO PRZYCISKÓW ---
     function attachEventListeners() {
-        if (listenersAttached) return;
         const saveBtn = document.getElementById('saveTargetsBtn');
         const toggleBtn = document.getElementById('togglePauseBtn');
         if (!saveBtn || !toggleBtn) return;
@@ -75,7 +77,6 @@
         document.querySelectorAll('.target-limit-input').forEach(input => {
             input.addEventListener('input', updatePopulationCount);
         });
-        listenersAttached = true;
     }
 
     // --- FUNKCJE POMOCNICZE UI ---
@@ -85,15 +86,13 @@
 
     // --- GŁÓWNA LOGIKA REKRUTACJI ---
     function checkAndRecruit() {
-        // ### ZMIANA LOGIKI - OBSŁUGA BLOKADY 5 SEKUND ###
         const lastRecruitTime = parseInt(sessionStorage.getItem(RECRUIT_TIMESTAMP_KEY) || '0');
-        const timeSinceLastRecruit = Date.now() - lastRecruitTime;
-        if (timeSinceLastRecruit < 5000) {
-            const waitTime = 5000 - timeSinceLastRecruit;
+        if (Date.now() - lastRecruitTime < 5000) {
+            const waitTime = 5000 - (Date.now() - lastRecruitTime);
             log(`Wykryto niedawną akcję rekrutacji. Ponawiam próbę za ~${Math.ceil(waitTime / 1000)}s.`);
-            clearTimeout(timerId); // Anuluj główny timer, aby uniknąć podwójnego uruchomienia
-            timerId = setTimeout(checkAndRecruit, waitTime); // Zaplanuj ponowienie próby po odczekaniu reszty czasu
-            return; // Zakończ bieżące wykonanie
+            clearTimeout(timerId);
+            timerId = setTimeout(checkAndRecruit, waitTime + 50); // +50ms marginesu
+            return;
         }
 
         if (isChecking) { log('Poprzedni cykl jest jeszcze w toku. Pomijam.'); return; }
@@ -101,7 +100,7 @@
 
         try {
             const config = loadConfig();
-            if (config.isPaused) { log('Cykl przerwany - skrypt jest zapauzowany.'); return; }
+            if (config.isPaused) { return; }
             log('Uruchamianie cyklu sprawdzania rekrutacji.');
             updateStatusUI();
 
@@ -112,7 +111,7 @@
             let commandsToExecute = [];
             for (const group of RECRUITMENT_GROUPS) {
                 const isGroupBusy = group.some(unitId => queuedUnits.has(unitId));
-                if (isGroupBusy) { log(`Grupa [${group.join(', ')}] jest zajęta. Pomijam.`); continue; }
+                if (isGroupBusy) { continue; }
 
                 let candidates = [];
                 for (const unitId of group) {
@@ -140,6 +139,7 @@
                 commandsToExecute.forEach(cmd => { const inputField = document.querySelector(`input[name="${cmd.unit}"]`); if (inputField) inputField.value = cmd.amount; });
                 sessionStorage.setItem(RECRUIT_TIMESTAMP_KEY, Date.now());
                 document.querySelector('input.btn-recruit').click();
+                return;
             }
 
             log('W tym cyklu nie podjęto żadnych działań rekrutacyjnych.');
@@ -162,36 +162,43 @@
         timerId = setTimeout(checkAndRecruit, delayMs);
     }
 
-    // --- GŁÓWNA PĘTLA INICJALIZUJĄCA SKRYPT ---
-    function mainLoop() {
-        const urlParams = new URLSearchParams(window.location.search);
-        // Sprawdzanie, czy jesteśmy na ekranie koszar, jest już w @match, ale zostawiamy dla pewności
-        if (urlParams.get('screen') === 'train') {
-            if (typeof game_data !== 'undefined' && game_data.village && game_data.village.id) {
-                if (!document.getElementById('autoRecruiterPanel')) {
-                    // Inicjalizuj tylko, jeśli UI nie istnieje
-                    villageId = game_data.village.id;
-                    STORAGE_KEY = `autoRecruiterConfig_v5_${villageId}`;
-                    RECRUIT_TIMESTAMP_KEY = `recruitmentTimestamp_v5_${villageId}`;
+    // --- GŁÓWNA FUNKCJA INICJALIZUJĄCA SKRYPT ---
+    function initScript() {
+        if (typeof game_data !== 'undefined' && game_data.village && game_data.village.id) {
+            log("Inicjalizacja Trenera Personalnego...");
+            villageId = game_data.village.id;
+            STORAGE_KEY = `autoRecruiterConfig_v8.0_${villageId}`;
+            RECRUIT_TIMESTAMP_KEY = `recruitmentTimestamp_v8.0_${villageId}`;
 
-                    createGUI();
-                    attachEventListeners();
-                    updatePopulationCount();
-                    updateStatusUI();
+            createGUI();
+            attachEventListeners();
+            updatePopulationCount();
+            updateStatusUI();
 
-                    const config = loadConfig();
-                    if (!config.isPaused) {
-                        log('Skrypt jest aktywny, uruchamiam pętlę.');
-                        checkAndRecruit();
-                    } else {
-                        log('Skrypt jest w pauzie.');
-                    }
-                }
+            const config = loadConfig();
+            if (!config.isPaused) {
+                log('Skrypt jest aktywny, uruchamiam pętlę.');
+                checkAndRecruit();
+            } else {
+                log('Skrypt jest w pauzie.');
             }
+        } else {
+            log("Błąd: Nie można odnaleźć danych wioski (game_data).");
         }
     }
 
-    // Uruchom główną pętlę co 250ms, aby była odporna na dynamiczne zmiany strony
-    setInterval(mainLoop, 250);
+    // --- MECHANIZM STARTOWY ---
+    // Czeka aż strona załaduje potrzebne elementy, a następnie uruchamia skrypt JEDEN RAZ.
+    const observer = new MutationObserver((mutations, obs) => {
+        if (document.querySelector('#train_form') && typeof game_data !== 'undefined') {
+            obs.disconnect(); // Natychmiast zatrzymaj obserwowanie, aby uniknąć ponownego uruchomienia.
+            initScript();
+        }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
 
 })();
