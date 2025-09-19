@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Plemiona Bob Budowniczy - Menadżer Kukiego
 // @namespace    http://tampermonkey.net/
-// @version      2.0
-// @description  full afk z szablonem pod eko + export i import, szablony
-// @author       kradzione 
+// @version      2.1
+// @description  full afk z szablonem pod eko + export i import, szablony (wersja per wioska)
+// @author       kradzione (z modyfikacją per wioska)
 // @match        https://*.plemiona.pl/game.php?village=*&screen=main*
 // @license      MIT
 // @downloadURL  https://raw.githubusercontent.com/Thumedan/Plemsy/main/MK.user.js
@@ -13,10 +13,33 @@
 (function() {
     'use strict';
 
+    // ZMIANA 1: Funkcja do pobierania ID wioski z adresu URL
+    function getVillageId() {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('village');
+        } catch (e) {
+            console.error('Nie udało się pobrać ID wioski:', e);
+            return null;
+        }
+    }
+
+    const VILLAGE_ID = getVillageId();
+
+    // ZMIANA 2: Zabezpieczenie - jeśli nie ma ID wioski, przerwij działanie skryptu
+    if (!VILLAGE_ID) {
+        console.log('[Menadżer Kukiego] Nie wykryto ID wioski na tej stronie. Skrypt nie zostanie uruchomiony.');
+        return;
+    }
+
     // Konfiguracja
     const CHECK_INTERVAL = 5 * 61 * 1000;
     const DEBUG = true;
-    const STORAGE_KEY = 'tribalWarsBuilderConfig';
+
+    // ZMIANA 3: Dynamiczne tworzenie klucza zapisu dla każdej wioski osobno
+    const STORAGE_KEY_PREFIX = 'tribalWarsBuilderConfig';
+    const STORAGE_KEY = `${STORAGE_KEY_PREFIX}_${VILLAGE_ID}`;
+
 
     // Biblioteka wbudowanych szablonów
     const TEMPLATES = {
@@ -41,6 +64,7 @@
     function loadConfig() {
         const defaultConfig = { useCostReduction: true, useLongBuildReduction: false, longBuildThreshold: 2, buildSequence: [] };
         try {
+            // Ta funkcja teraz automatycznie używa klucza dla konkretnej wioski
             const savedConfig = localStorage.getItem(STORAGE_KEY);
             return savedConfig ? JSON.parse(savedConfig) : defaultConfig;
         } catch (error) {
@@ -51,8 +75,9 @@
 
     function saveConfig(config) {
         try {
+            // Ta funkcja teraz automatycznie używa klucza dla konkretnej wioski
             localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-            debugLog('Config saved:', config);
+            debugLog(`Config saved for village ${VILLAGE_ID}:`, config);
         } catch (error) {
             debugLog('Error saving config:', error);
         }
@@ -87,7 +112,7 @@
         const titleSection = document.createElement('div');
         titleSection.style.marginBottom = '20px';
         const title = document.createElement('h3');
-        title.textContent = 'Auto Builder Settings';
+        title.textContent = `Auto Builder (Wioska: ${VILLAGE_ID})`; // Dodano ID wioski do tytułu dla jasności
         title.style.cssText = 'margin: 0 0 5px 0; font-size: 14px; font-weight: bold;';
         titleSection.appendChild(title);
         uiContainer.appendChild(titleSection);
